@@ -18,10 +18,10 @@ class _PermissionScreenState extends State<PermissionScreen> {
   @override
   void initState() {
     super.initState();
-    _checkPermissions();
+    _checkAll();
   }
 
-  Future<void> _checkPermissions() async {
+  Future<void> _checkAll() async {
     final loc = await Geolocator.checkPermission();
     final notif = await Permission.notification.status;
 
@@ -32,46 +32,41 @@ class _PermissionScreenState extends State<PermissionScreen> {
       _checking = false;
     });
 
-    // If already granted, skip straight to home
-    if (_locationGranted && _notificationsGranted) {
-      await _startServiceAndGoHome();
+    if (_allGranted) {
+      await _startAndGo();
     }
   }
 
-  Future<void> _startServiceAndGoHome() async {
+  bool get _allGranted => _locationGranted && _notificationsGranted;
+
+  Future<void> _startAndGo() async {
     await initForegroundService();
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
-    }
+    if (mounted) Navigator.of(context).pushReplacementNamed('/home');
   }
 
   Future<void> _requestAll() async {
     await Geolocator.requestPermission();
     await Permission.notification.request();
 
-    await _checkPermissions();
+    // Request battery optimization exemption
+    await Permission.ignoreBatteryOptimizations.request();
+
+    await _checkAll();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_checking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()), backgroundColor: Color(0xFF1A1A2E));
     }
-
-    final allGranted = _locationGranted && _notificationsGranted;
-
-    if (allGranted) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+    if (_allGranted) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()), backgroundColor: Color(0xFF1A1A2E));
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -82,37 +77,34 @@ class _PermissionScreenState extends State<PermissionScreen> {
                 children: [
                   const Icon(Icons.shield, size: 56, color: Color(0xFF2563EB)),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Background Access Required',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Always-On Tracking Required',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Guard Tracker needs these permissions to track your checkpoints in the background:',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
+                  const Text('Checkpoints Tracker runs continuously in the background. '
+                      'These permissions ensure it never stops:',
+                      textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 20),
-                  _permissionRow(Icons.location_on, 'Location', 'Send position during check-ins', _locationGranted),
+                  _row(Icons.location_on, 'Location (Always)', 'Track your position even when app is closed', _locationGranted),
                   const SizedBox(height: 10),
-                  _permissionRow(Icons.notifications, 'Notifications', 'Keep the service running persistently', _notificationsGranted),
+                  _row(Icons.notifications, 'Persistent Notification', 'Keeps the service alive — cannot be dismissed', _notificationsGranted),
+                  const SizedBox(height: 10),
+                  _row(Icons.battery_full, 'Battery Optimization Off', 'Prevents Android from killing the app in sleep mode', false),
                   const SizedBox(height: 24),
+                  const Text(
+                    'After granting, the service will auto-track checkpoints. '
+                    'You cannot manually complete checkpoints — only the app can when you reach the location.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     height: 44,
                     child: ElevatedButton(
                       onPressed: _requestAll,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Grant Permissions & Continue'),
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+                      child: const Text('Grant All & Start Tracking'),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: _startServiceAndGoHome,
-                    child: const Text('Skip (limited functionality)', style: TextStyle(color: Colors.grey)),
                   ),
                 ],
               ),
@@ -123,7 +115,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
     );
   }
 
-  Widget _permissionRow(IconData icon, String title, String subtitle, bool granted) {
+  Widget _row(IconData icon, String title, String subtitle, bool granted) {
     return Row(
       children: [
         Icon(icon, size: 28, color: granted ? Colors.green : Colors.grey),

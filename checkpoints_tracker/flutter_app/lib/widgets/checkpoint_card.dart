@@ -4,15 +4,9 @@ import 'status_badge.dart';
 
 class CheckpointCard extends StatelessWidget {
   final Checkpoint checkpoint;
-  final VoidCallback? onMarkCompleted;
   final VoidCallback? onTap;
 
-  const CheckpointCard({
-    super.key,
-    required this.checkpoint,
-    this.onMarkCompleted,
-    this.onTap,
-  });
+  const CheckpointCard({super.key, required this.checkpoint, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -35,10 +29,8 @@ class CheckpointCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      checkpoint.label,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                    ),
+                    Text(checkpoint.label,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                     const SizedBox(height: 4),
                     Text(
                       '${checkpoint.latitude.toStringAsFixed(6)}, ${checkpoint.longitude.toStringAsFixed(6)}',
@@ -55,26 +47,7 @@ class CheckpointCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Column(
-                children: [
-                  StatusBadge(isCompleted: checkpoint.isCompleted),
-                  if (!checkpoint.isCompleted && onMarkCompleted != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: SizedBox(
-                        height: 28,
-                        child: ElevatedButton(
-                          onPressed: onMarkCompleted,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            textStyle: const TextStyle(fontSize: 11),
-                          ),
-                          child: const Text('Complete'),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              StatusBadge(isCompleted: checkpoint.isCompleted),
             ],
           ),
         ),
