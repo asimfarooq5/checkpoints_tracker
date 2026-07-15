@@ -1,0 +1,16 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - DB_PATH=/app/data/checkpoints_tracker.db
+    volumes:
+      - tracker_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  tracker_data:

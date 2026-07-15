@@ -1,0 +1,8 @@
+.git
+.gitignore
+node_modules
+flutter_app
+Makefile
+README.md
+.env
+*.md
