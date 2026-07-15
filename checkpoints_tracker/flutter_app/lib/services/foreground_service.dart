@@ -63,6 +63,35 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
 
   await showPersistentNotification();
 
+  // Rapid re-notification timer to pin notification (re-shows if dismissed on Android 16+)
+  Timer.periodic(const Duration(seconds: 30), (_) async {
+    final locationEnabled = await Geolocator.isLocationServiceEnabled();
+    final msg = locationEnabled
+        ? 'Tracking — ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}'
+        : '⚠ Location OFF — tap to enable';
+    await _notifications.show(
+      _notificationId,
+      'Checkpoints Tracker',
+      msg,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDesc,
+          importance: Importance.max,
+          priority: Priority.max,
+          playSound: false,
+          enableVibration: false,
+          ongoing: true,
+          showWhen: true,
+          usesChronometer: true,
+          visibility: NotificationVisibility.public,
+          fullScreenIntent: true,
+        ),
+      ),
+    );
+  });
+
   Timer.periodic(const Duration(minutes: 2), (timer) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) return;
@@ -145,7 +174,15 @@ Future<void> initForegroundService() async {
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
   await _notifications.initialize(
     const InitializationSettings(android: androidSettings),
-    onDidReceiveNotificationResponse: (_) {},
+    onDidReceiveNotificationResponse: (response) async {
+      // Notification tapped — open location settings if location is off
+      final locationOn = await Geolocator.isLocationServiceEnabled();
+      if (!locationOn) {
+        await Geolocator.openLocationSettings();
+      } else {
+        FlutterBackgroundService().invoke('setAsForeground');
+      }
+    },
   );
 
   const androidChannel = AndroidNotificationChannel(
