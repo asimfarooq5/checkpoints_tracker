@@ -70,11 +70,11 @@ distclean: clean
 docker:
 	docker compose build
 	docker compose up -d
-	@echo "→ Backend running on http://localhost:3300"
+	@echo "→ Backend running on http://0.0.0.0:3300 (accessible via server IP: 91.99.147.23:3300)"
 
 docker-up:
 	docker compose up -d
-	@echo "→ Backend running on http://localhost:3300"
+	@echo "→ Backend running on http://0.0.0.0:3300 (accessible via server IP)"
 
 docker-down:
 	docker compose down
