@@ -13,6 +13,24 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _autoChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tryAutoLogin();
+  }
+
+  Future<void> _tryAutoLogin() async {
+    final auth = context.read<AuthProvider>();
+    await auth.tryAutoLogin();
+    if (!mounted) return;
+    if (auth.isLoggedIn) {
+      Navigator.of(context).pushReplacementNamed('/permissions');
+    } else {
+      setState(() => _autoChecking = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -39,6 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_autoChecking) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF1A1A2E),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
       body: Center(
