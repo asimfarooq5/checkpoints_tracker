@@ -6,3 +6,6 @@ See [technology-stack/taste.md](technology-stack/taste.md)
 
 # Flutter
 - Use a 10-second timeout for Flutter API HTTP requests. Confidence: 0.65
+
+# Project Structure
+- Use "checkpoints_tracker" as the project directory name consistently. Confidence: 0.65
