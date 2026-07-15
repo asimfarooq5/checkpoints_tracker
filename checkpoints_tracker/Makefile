@@ -2,7 +2,7 @@ BACKEND_DIR := backend
 ADMIN_DIR := $(BACKEND_DIR)/admin-panel
 FLUTTER_DIR := flutter_app
 
-.PHONY: all backend admin flutter build clean help
+.PHONY: all backend admin flutter build clean help docker docker-up docker-down docker-rebuild
 
 all: build
 
@@ -65,6 +65,26 @@ distclean: clean
 
 # ── Help ────────────────────────────────────────────────────────
 
+# ── Docker ──────────────────────────────────────────────────────
+
+docker:
+	docker compose build
+	docker compose up -d
+	@echo "→ Backend running on http://localhost:3000"
+
+docker-up:
+	docker compose up -d
+	@echo "→ Backend running on http://localhost:3000"
+
+docker-down:
+	docker compose down
+
+docker-rebuild:
+	docker compose build --no-cache
+	docker compose up -d
+
+# ── Help ────────────────────────────────────────────────────────
+
 help:
 	@echo "Usage: make <target>"
 	@echo ""
@@ -76,3 +96,7 @@ help:
 	@echo "  install       Install all dependencies (backend + admin)"
 	@echo "  clean         Remove build artifacts"
 	@echo "  distclean     Remove build artifacts + node_modules + data"
+	@echo "  docker        Build & start in Docker container"
+	@echo "  docker-up     Start existing Docker container"
+	@echo "  docker-down   Stop Docker container"
+	@echo "  docker-rebuild Force rebuild Docker image from scratch"
