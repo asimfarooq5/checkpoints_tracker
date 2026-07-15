@@ -70,11 +70,11 @@ distclean: clean
 docker:
 	docker compose build
 	docker compose up -d
-	@echo "→ Backend running on http://localhost:3000"
+	@echo "→ Backend running on http://localhost:3300"
 
 docker-up:
 	docker compose up -d
-	@echo "→ Backend running on http://localhost:3000"
+	@echo "→ Backend running on http://localhost:3300"
 
 docker-down:
 	docker compose down
