@@ -62,8 +62,14 @@ export function markCheckpointCompleted(id) {
 export function checkIn(id, latitude, longitude) {
   const existing = db.prepare('SELECT * FROM checkpoints WHERE id = ?').get(id);
   if (!existing) return null;
-  db.prepare(
-    "UPDATE checkpoints SET last_latitude = ?, last_longitude = ?, last_checked_at = datetime('now') WHERE id = ?"
-  ).run(latitude, longitude, id);
+  const txn = db.transaction(() => {
+    db.prepare(
+      "UPDATE checkpoints SET last_latitude = ?, last_longitude = ?, last_checked_at = datetime('now') WHERE id = ?"
+    ).run(latitude, longitude, id);
+    db.prepare(
+      'INSERT INTO checkin_log (user_id, checkpoint_id, latitude, longitude) VALUES (?, ?, ?, ?)'
+    ).run(existing.user_id, id, latitude, longitude);
+  });
+  txn();
   return getCheckpointById(id);
 }

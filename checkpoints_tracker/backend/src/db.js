@@ -50,6 +50,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_checkpoints_user_id   ON checkpoints(user_id);
   CREATE INDEX IF NOT EXISTS idx_checkpoints_status    ON checkpoints(status);
   CREATE INDEX IF NOT EXISTS idx_checkpoints_user_status ON checkpoints(user_id, status);
+
+  CREATE TABLE IF NOT EXISTS checkin_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL,
+    checkpoint_id   INTEGER,
+    latitude        REAL    NOT NULL,
+    longitude       REAL    NOT NULL,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_checkin_log_user ON checkin_log(user_id);
+  CREATE INDEX IF NOT EXISTS idx_checkin_log_time ON checkin_log(created_at);
 `);
 
 // Add lat/long columns to existing users table if they don't exist (migration)

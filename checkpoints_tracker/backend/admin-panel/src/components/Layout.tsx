@@ -17,6 +17,7 @@ export default function Layout() {
         <h2>Guard Tracker</h2>
         <NavLink to="/" end>Dashboard</NavLink>
         <NavLink to="/users">Users</NavLink>
+        <NavLink to="/live">Live Tracking</NavLink>
       </nav>
       <div className="main-content">
         <div className="topbar">

@@ -1,0 +1,85 @@
+import { Router } from 'express';
+import { authMiddleware } from '../middleware/auth.js';
+import { adminMiddleware } from '../middleware/admin.js';
+import db from '../db.js';
+
+const router = Router();
+
+// POST /api/location — worker pushes their current location (no checkpoint needed)
+router.post('/location', authMiddleware, (req, res) => {
+  const { latitude, longitude } = req.body;
+  if (latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ error: 'latitude and longitude are required' });
+  }
+  db.prepare(
+    'INSERT INTO checkin_log (user_id, checkpoint_id, latitude, longitude) VALUES (?, ?, ?, ?)'
+  ).run(req.user.id, null, latitude, longitude);
+  res.json({ message: 'ok' });
+});
+
+// GET /api/location/trail/:userId — full route trail for a worker
+router.get('/location/trail/:userId', authMiddleware, (req, res) => {
+  const userId = Number(req.params.userId);
+  if (req.user.role !== 'admin' && req.user.id !== userId) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const points = db.prepare(`
+    SELECT latitude, longitude, created_at, checkpoint_id
+    FROM checkin_log
+    WHERE user_id = ?
+    ORDER BY created_at ASC
+  `).all(userId);
+
+  res.json({ user_id: userId, points });
+});
+
+// GET /api/users/:userId/location — latest known location for a worker
+router.get('/users/:userId/location', authMiddleware, adminMiddleware, (req, res) => {
+  const userId = Number(req.params.userId);
+  const user = db.prepare('SELECT id, username, display_name FROM users WHERE id = ?').get(userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const latest = db.prepare(`
+    SELECT latitude, longitude, created_at
+    FROM checkin_log
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(userId);
+
+  if (!latest) {
+    return res.json({ user, location: null, message: 'No location data yet.' });
+  }
+
+  res.json({
+    user,
+    location: { latitude: latest.latitude, longitude: latest.longitude, updated_at: latest.created_at },
+  });
+});
+
+// GET /api/locations — all workers' latest locations
+router.get('/locations', authMiddleware, adminMiddleware, (req, res) => {
+  const workers = db.prepare("SELECT id, username, display_name FROM users WHERE role = 'worker'").all();
+
+  const result = workers.map(worker => {
+    const latest = db.prepare(`
+      SELECT latitude, longitude, created_at
+      FROM checkin_log
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(worker.id);
+
+    return {
+      ...worker,
+      location: latest
+        ? { latitude: latest.latitude, longitude: latest.longitude, updated_at: latest.created_at }
+        : null,
+    };
+  });
+
+  res.json({ workers: result });
+});
+
+export default router;

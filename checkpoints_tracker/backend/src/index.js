@@ -9,6 +9,7 @@ import userRoutes from './routes/users.js';
 import checkpointRoutes from './routes/checkpoints.js';
 import uploadRoutes from './routes/upload.js';
 import exportRoutes from './routes/export.js';
+import locationRoutes from './routes/location.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/checkpoints', checkpointRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api', locationRoutes);
 
 // Serve admin panel static files in production
 const adminDist = path.resolve(__dirname, '..', 'admin-panel', 'dist');

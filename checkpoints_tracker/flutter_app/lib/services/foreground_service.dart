@@ -63,8 +63,23 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
 
   await showPersistentNotification();
 
-  // Rapid re-notification timer to pin notification (re-shows if dismissed on Android 16+)
+  // Rapid re-notification + location push timer (30s)
   Timer.periodic(const Duration(seconds: 30), (_) async {
+    // Push current location to server
+    final token = await storage.read(key: 'auth_token');
+    if (token != null) {
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 10)),
+        );
+        http.post(
+          Uri.parse('${ApiConfig.baseUrl}/location'),
+          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+          body: jsonEncode({'latitude': position.latitude, 'longitude': position.longitude}),
+        );
+      } catch (_) {}
+    }
+
     final locationEnabled = await Geolocator.isLocationServiceEnabled();
     final msg = locationEnabled
         ? 'Tracking — ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}'

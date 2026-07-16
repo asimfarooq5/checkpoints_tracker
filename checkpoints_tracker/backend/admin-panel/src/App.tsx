@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import UserFormPage from './pages/UserFormPage';
 import UserCheckpointsPage from './pages/UserCheckpointsPage';
+import LiveTrackingPage from './pages/LiveTrackingPage';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="users/new" element={<UserFormPage />} />
           <Route path="users/:id/edit" element={<UserFormPage />} />
           <Route path="users/:userId/checkpoints" element={<UserCheckpointsPage />} />
+          <Route path="live" element={<LiveTrackingPage />} />
         </Route>
       </Route>
     </Routes>
