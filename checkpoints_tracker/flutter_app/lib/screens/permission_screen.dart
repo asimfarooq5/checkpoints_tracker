@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' hide ServiceStatus;
-import 'package:disable_battery_optimization/disable_battery_optimization.dart';
+import '../services/battery_optimization.dart';
 import '../services/foreground_service.dart';
 
 class PermissionScreen extends StatefulWidget {
@@ -104,14 +104,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
     // Many OEMs (Xiaomi, Huawei, Oppo, Vivo, Samsung) kill background services
     // via their own "autostart"/"protected apps" lists, separate from stock
     // Android's battery optimization API. Prompt for those too, best-effort.
-    try {
-      await DisableBatteryOptimization.showDisableAllOptimizationsSettings(
-        'Allow Auto-Start',
-        'This lets Checkpoints Tracker restart itself if the system kills it in the background.',
-        'Disable Battery Optimization',
-        'This stops the phone from freezing location tracking to save battery.',
-      );
-    } catch (_) {}
+    await BatteryOptimization.openAutoStartSettings();
 
     await _checkAll();
 

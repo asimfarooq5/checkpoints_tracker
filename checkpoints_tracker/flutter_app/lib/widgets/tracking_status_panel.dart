@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:disable_battery_optimization/disable_battery_optimization.dart';
+import '../services/battery_optimization.dart';
 import '../services/foreground_service.dart';
 import '../services/offline_queue.dart';
 
@@ -37,10 +37,7 @@ class _TrackingStatusPanelState extends State<TrackingStatusPanel> {
     final running = await isServiceRunning();
     final lastSync = await getLastSyncAt();
     final queueCount = await OfflineQueue.count();
-    bool batteryOk = true;
-    try {
-      batteryOk = await DisableBatteryOptimization.isAllBatteryOptimizationDisabled ?? true;
-    } catch (_) {}
+    final batteryOk = await BatteryOptimization.isIgnoringBatteryOptimizations();
     if (!mounted) return;
     setState(() {
       _serviceRunning = running;
@@ -60,14 +57,7 @@ class _TrackingStatusPanelState extends State<TrackingStatusPanel> {
   }
 
   Future<void> _fixBatteryOptimization() async {
-    try {
-      await DisableBatteryOptimization.showDisableAllOptimizationsSettings(
-        'Allow Auto-Start',
-        'This lets Checkpoints Tracker restart itself if the system kills it in the background.',
-        'Disable Battery Optimization',
-        'This stops the phone from freezing location tracking to save battery.',
-      );
-    } catch (_) {}
+    await BatteryOptimization.openAutoStartSettings();
     await _refresh();
   }
 
