@@ -65,6 +65,18 @@ distclean: clean
 
 # ── Help ────────────────────────────────────────────────────────
 
+# ── CLI ──────────────────────────────────────────────────────────
+
+cli:
+	@echo "Usage: make cli-create-admin <username> <password>"
+	@echo "       make cli-list"
+
+cli-create-admin:
+	cd $(BACKEND_DIR) && node src/cli.js create-admin $(filter-out $@,$(MAKECMDGOALS))
+
+cli-list:
+	cd $(BACKEND_DIR) && node src/cli.js list
+
 # ── Docker ──────────────────────────────────────────────────────
 
 docker:
