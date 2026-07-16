@@ -82,11 +82,16 @@ cli-list:
 docker:
 	docker compose build
 	docker compose up -d
-	@echo "→ Backend running on http://0.0.0.0:3300 (accessible via server IP: 91.99.147.23:3300)"
+	@echo "→ Backend running on http://0.0.0.0:3300"
 
 docker-up:
-	docker compose up -d
-	@echo "→ Backend running on http://0.0.0.0:3300 (accessible via server IP)"
+	docker compose up -d --build
+	@echo "→ Backend running on http://0.0.0.0:3300"
+
+docker-pull:
+	git pull
+	docker compose up -d --build
+	@echo "→ Updated & restarted"
 
 docker-down:
 	docker compose down
@@ -109,6 +114,7 @@ help:
 	@echo "  clean         Remove build artifacts"
 	@echo "  distclean     Remove build artifacts + node_modules + data"
 	@echo "  docker        Build & start in Docker container"
-	@echo "  docker-up     Start existing Docker container"
+	@echo "  docker-up     Start existing Docker container (rebuilds if needed)"
 	@echo "  docker-down   Stop Docker container"
 	@echo "  docker-rebuild Force rebuild Docker image from scratch"
+	@echo "  docker-pull   Git pull + rebuild + restart"
