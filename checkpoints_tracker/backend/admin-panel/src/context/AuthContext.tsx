@@ -26,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Validate token
       api.get<{ user: User }>('/auth/me')
         .then(res => {
+          if (res.user.role !== 'admin') throw new Error('Not admin');
           setUser(res.user);
           localStorage.setItem('user', JSON.stringify(res.user));
         })
@@ -43,6 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await api.post<{ token: string; user: User }>('/auth/login', { username, password });
+    if (res.user.role !== 'admin') {
+      throw new Error('Invalid username or password');
+    }
     localStorage.setItem('token', res.token);
     localStorage.setItem('user', JSON.stringify(res.user));
     setToken(res.token);
