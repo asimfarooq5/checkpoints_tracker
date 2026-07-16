@@ -80,7 +80,7 @@ cli-list:
 # ── Docker ──────────────────────────────────────────────────────
 
 docker:
-	docker compose build
+	docker compose build --no-cache
 	docker compose up -d
 	@echo "→ Backend running on http://0.0.0.0:3300"
 
