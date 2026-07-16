@@ -12,7 +12,7 @@ const String _channelId = 'checkpoints_tracker_service';
 const String _channelName = 'Checkpoint Tracking';
 const String _channelDesc = 'Checkpoints Tracker is running in the background.';
 const int _notificationId = 7410;
-const double _autoCompleteDistance = 50; // meters
+const double _autoCompleteDistance = 150; // meters
 
 final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
 
@@ -63,55 +63,11 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
 
   await showPersistentNotification();
 
-  // Rapid re-notification + location push timer (30s)
+  // Unified 30s timer: location push + proximity check + notification pin
   Timer.periodic(const Duration(seconds: 30), (_) async {
-    // Push current location to server
-    final token = await storage.read(key: 'auth_token');
-    if (token != null) {
-      try {
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 10)),
-        );
-        http.post(
-          Uri.parse('${ApiConfig.baseUrl}/location'),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: jsonEncode({'latitude': position.latitude, 'longitude': position.longitude}),
-        );
-      } catch (_) {}
-    }
-
-    final locationEnabled = await Geolocator.isLocationServiceEnabled();
-    final msg = locationEnabled
-        ? 'Tracking — ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}'
-        : '⚠ Location OFF — tap to enable';
-    await _notifications.show(
-      _notificationId,
-      'Checkpoints Tracker',
-      msg,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          channelDescription: _channelDesc,
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: false,
-          enableVibration: false,
-          ongoing: true,
-          showWhen: true,
-          usesChronometer: true,
-          visibility: NotificationVisibility.public,
-          fullScreenIntent: true,
-        ),
-      ),
-    );
-  });
-
-  Timer.periodic(const Duration(minutes: 2), (timer) async {
     final token = await storage.read(key: 'auth_token');
     if (token == null) return;
 
-    // Check if location is enabled
     final locationEnabled = await Geolocator.isLocationServiceEnabled();
     if (!locationEnabled) {
       await showPersistentNotification(message: '⚠ Location is OFF — tracking paused');
@@ -121,10 +77,7 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
     Position? position;
     try {
       position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 10)),
       );
     } catch (_) {
       await showPersistentNotification(message: '⚠ Cannot get location — retrying...');
@@ -132,6 +85,18 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
     }
 
     final base = ApiConfig.baseUrl;
+    int completed = 0;
+
+    // 1. Push location
+    try {
+      await http
+          .post(Uri.parse('$base/location'),
+              headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+              body: jsonEncode({'latitude': position.latitude, 'longitude': position.longitude}))
+          .timeout(ApiConfig.timeout);
+    } catch (_) {}
+
+    // 2. Fetch checkpoints + check proximity
     try {
       final uri = Uri.parse('$base/checkpoints');
       final response = await http
@@ -141,7 +106,6 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map;
         final checkpoints = data['checkpoints'] as List;
-        int completed = 0;
 
         for (final cp in checkpoints) {
           if (cp['status'] != 'pending') continue;
@@ -149,37 +113,35 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
           final cpLng = (cp['longitude'] as num).toDouble();
           final distance = _haversine(position.latitude, position.longitude, cpLat, cpLng);
 
-          // Send check-in regardless of distance
+          // Always check-in
           try {
-            final checkinUri = Uri.parse('$base/checkpoints/${cp['id']}/checkin');
-            await http.patch(
-              checkinUri,
-              headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-              body: jsonEncode({'latitude': position.latitude, 'longitude': position.longitude}),
-            ).timeout(ApiConfig.timeout);
+            await http
+                .patch(Uri.parse('$base/checkpoints/${cp['id']}/checkin'),
+                    headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+                    body: jsonEncode({'latitude': position.latitude, 'longitude': position.longitude}))
+                .timeout(ApiConfig.timeout);
           } catch (_) {}
 
-          // Auto-complete if within range
+          // Auto-complete if within 150m
           if (distance <= _autoCompleteDistance) {
             try {
-              final statusUri = Uri.parse('$base/checkpoints/${cp['id']}/status');
-              await http.patch(statusUri,
-                  headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-                  body: jsonEncode({'status': 'completed'}),
-                ).timeout(ApiConfig.timeout);
+              await http
+                  .patch(Uri.parse('$base/checkpoints/${cp['id']}/status'),
+                      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+                      body: jsonEncode({'status': 'completed'}))
+                  .timeout(ApiConfig.timeout);
               completed++;
             } catch (_) {}
           }
         }
-
-        final msg = completed > 0
-            ? '✓ $completed checkpoint(s) auto-completed!'
-            : 'Tracking — ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}';
-        await showPersistentNotification(message: msg);
       }
-    } catch (_) {
-      await showPersistentNotification(message: 'Tracking — server unreachable');
-    }
+    } catch (_) {}
+
+    final time = '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}';
+    final msg = completed > 0
+        ? '✓ $completed checkpoint(s) auto-completed!'
+        : 'Tracking — $time';
+    await showPersistentNotification(message: msg);
   });
 
   return true;
