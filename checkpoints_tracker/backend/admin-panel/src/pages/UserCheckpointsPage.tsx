@@ -40,25 +40,6 @@ export default function UserCheckpointsPage() {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadData(); loadTrail(); }, [userId]);
-
-  const loadTrail = async () => {
-    try {
-      const [locRes, trailRes] = await Promise.all([
-        api.get<{ location: { latitude: number; longitude: number; updated_at: string } | null }>(`/users/${userId}/location`),
-        api.get<{ points: { latitude: number; longitude: number; created_at: string }[] }>(`/location/trail/${userId}`),
-      ]);
-      setLiveLocation(locRes.location);
-      setTrail(trailRes.points);
-    } catch {}
-  };
-
-  // Auto-refresh map every 10s
-  useEffect(() => {
-    const interval = setInterval(loadTrail, 10000);
-    return () => clearInterval(interval);
-  }, [userId]);
-
   const loadData = async () => {
     try {
       const [userRes, cpRes] = await Promise.all([
@@ -73,6 +54,25 @@ export default function UserCheckpointsPage() {
       setLoading(false);
     }
   };
+
+  const loadTrail = async () => {
+    try {
+      const [locRes, trailRes] = await Promise.all([
+        api.get<{ location: { latitude: number; longitude: number; updated_at: string } | null }>(`/users/${userId}/location`),
+        api.get<{ points: { latitude: number; longitude: number; created_at: string }[] }>(`/location/trail/${userId}`),
+      ]);
+      setLiveLocation(locRes.location);
+      setTrail(trailRes.points);
+    } catch {}
+  };
+
+  useEffect(() => { loadData(); loadTrail(); }, [userId]);
+
+  // Auto-refresh map every 10s
+  useEffect(() => {
+    const interval = setInterval(loadTrail, 10000);
+    return () => clearInterval(interval);
+  }, [userId]);
 
   // ── Add dialog ────────────────────────────────────────
 
@@ -188,16 +188,18 @@ export default function UserCheckpointsPage() {
     loadData();
   };
 
-  // Init map
+  // Init map (runs after loading is done and element is in DOM)
   useEffect(() => {
-    if (mapRef.current) return;
+    if (mapRef.current || loading) return;
+    const el = document.getElementById(containerId);
+    if (!el) return;
     const map = L.map(containerId).setView([33.6844, 73.0479], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map);
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
-  }, [userId]);
+  }, [loading, userId]);
 
   // Update markers + trail on map
   useEffect(() => {
