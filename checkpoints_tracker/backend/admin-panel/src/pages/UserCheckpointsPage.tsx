@@ -9,6 +9,8 @@ interface CsvRow {
   lng: number;
 }
 
+declare const L: any;
+
 export default function UserCheckpointsPage() {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -16,6 +18,12 @@ export default function UserCheckpointsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [liveLocation, setLiveLocation] = useState<{ latitude: number; longitude: number; updated_at: string } | null>(null);
+  const [trail, setTrail] = useState<{ latitude: number; longitude: number }[]>([]);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const trailLineRef = useRef<any>(null);
+  const containerId = `usermap-${userId}`;
 
   // Add dialog
   const [showAdd, setShowAdd] = useState(false);
@@ -32,7 +40,24 @@ export default function UserCheckpointsPage() {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadData(); }, [userId]);
+  useEffect(() => { loadData(); loadTrail(); }, [userId]);
+
+  const loadTrail = async () => {
+    try {
+      const [locRes, trailRes] = await Promise.all([
+        api.get<{ location: { latitude: number; longitude: number; updated_at: string } | null }>(`/users/${userId}/location`),
+        api.get<{ points: { latitude: number; longitude: number; created_at: string }[] }>(`/location/trail/${userId}`),
+      ]);
+      setLiveLocation(locRes.location);
+      setTrail(trailRes.points);
+    } catch {}
+  };
+
+  // Auto-refresh map every 10s
+  useEffect(() => {
+    const interval = setInterval(loadTrail, 10000);
+    return () => clearInterval(interval);
+  }, [userId]);
 
   const loadData = async () => {
     try {
@@ -163,6 +188,67 @@ export default function UserCheckpointsPage() {
     loadData();
   };
 
+  // Init map
+  useEffect(() => {
+    if (mapRef.current) return;
+    const map = L.map(containerId).setView([33.6844, 73.0479], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
+  }, [userId]);
+
+  // Update markers + trail on map
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !user) return;
+
+    markersRef.current.forEach(m => map.removeLayer(m));
+    markersRef.current = [];
+    if (trailLineRef.current) { map.removeLayer(trailLineRef.current); trailLineRef.current = null; }
+
+    const bounds: number[][] = [];
+
+    // Checkpoint pins
+    checkpoints.forEach(cp => {
+      const color = cp.status === 'completed' ? '#10b981' : '#f59e0b';
+      const m = L.circleMarker([cp.latitude, cp.longitude], {
+        radius: 7, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9,
+      }).addTo(map);
+      m.bindPopup(`<b>${cp.label}</b><br/>${cp.status}<br/>${cp.latitude.toFixed(6)}, ${cp.longitude.toFixed(6)}`);
+      markersRef.current.push(m);
+      bounds.push([cp.latitude, cp.longitude]);
+    });
+
+    // Live location dot
+    if (liveLocation) {
+      const m = L.circleMarker([liveLocation.latitude, liveLocation.longitude], {
+        radius: 10, fillColor: '#2563eb', color: '#fff', weight: 3, fillOpacity: 1,
+      }).addTo(map);
+      m.bindPopup(`<b>${user.display_name}</b><br/>Live<br/>${new Date(liveLocation.updated_at).toLocaleTimeString()}`);
+      markersRef.current.push(m);
+      bounds.push([liveLocation.latitude, liveLocation.longitude]);
+    }
+
+    // GPS trail
+    if (trail.length > 1) {
+      const coords = trail.map(p => [p.latitude, p.longitude]);
+      trailLineRef.current = L.polyline(coords, { color: '#2563eb', weight: 3, opacity: 0.6 }).addTo(map);
+      bounds.push(...coords);
+    }
+
+    // Add assigned checkpoint location as green marker
+    if (user.latitude != null && user.longitude != null) {
+      const m = L.marker([user.latitude, user.longitude]).addTo(map);
+      m.bindPopup(`<b>${user.display_name}'s assigned location</b>`);
+      markersRef.current.push(m);
+      bounds.push([user.latitude, user.longitude]);
+    }
+
+    if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+  }, [checkpoints, liveLocation, trail]);
+
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>;
   if (!user) return null;
 
@@ -179,6 +265,20 @@ export default function UserCheckpointsPage() {
           Import CSV
         </button>
         <input type="file" accept=".csv" ref={fileRef} onChange={handleCsvFile} style={{ display: 'none' }} />
+      </div>
+
+      {/* ── Live Map ──────────────────────────────────────── */}
+      <div className="card mb-2">
+        <div className="flex items-center mb-2">
+          <h3>Live Location</h3>
+          <span className="text-sm text-muted ml-auto">
+            {liveLocation ? `Last update: ${new Date(liveLocation.updated_at).toLocaleTimeString()}` : 'No location data yet'}
+          </span>
+        </div>
+        <div id={containerId} style={{ height: '300px', borderRadius: 6 }} />
+        {trail.length > 0 && (
+          <p className="text-sm text-muted mt-2" style={{ marginTop: 8 }}>{trail.length} tracking points collected</p>
+        )}
       </div>
 
       {/* ── Checkpoint list ──────────────────────────────── */}
