@@ -23,6 +23,7 @@ export default function UserCheckpointsPage() {
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const trailLineRef = useRef<any>(null);
+  const initialFitDone = useRef(false);
   const containerId = `usermap-${userId}`;
 
   // Add dialog
@@ -248,7 +249,10 @@ export default function UserCheckpointsPage() {
       bounds.push([user.latitude, user.longitude]);
     }
 
-    if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+    if (bounds.length > 0 && !initialFitDone.current) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+      initialFitDone.current = true;
+    }
   }, [checkpoints, liveLocation, trail]);
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>;

@@ -26,6 +26,7 @@ export default function LiveTrackingPage() {
   const markersRef = useRef<any[]>([]);
   const trailLineRef = useRef<any>(null);
   const containerId = 'livemap';
+  const initialFitDone = useRef(false);
 
   // Load workers
   useEffect(() => {
@@ -95,7 +96,10 @@ export default function LiveTrackingPage() {
       bounds.push(...coords);
     }
 
-    if (bounds.length > 0) map.fitBounds(bounds, { padding: [50, 50] });
+    if (bounds.length > 0 && !initialFitDone.current) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+      initialFitDone.current = true;
+    }
   }, [workers, trail, selectedId]);
 
   const handleSelect = async (id: string) => {
