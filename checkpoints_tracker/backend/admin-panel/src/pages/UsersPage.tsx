@@ -137,12 +137,13 @@ export default function UsersPage() {
                     </td>
                     <td onClick={e => e.stopPropagation()}>
                       {u.role === 'worker' ? (
-                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} title="Ring loud alarm if location is turned off">
+                        <label className="toggle-switch" title="Ring loud alarm if location is turned off">
                           <input
                             type="checkbox"
                             checked={Boolean(u.alarm_enabled)}
                             onChange={e => handleToggleAlarm(u.id, e.target.checked)}
                           />
+                          <span className="slider" />
                         </label>
                       ) : <span className="text-muted text-sm">—</span>}
                     </td>

@@ -77,11 +77,21 @@ export default function UserFormPage() {
             </select>
           </div>
           <div className="form-group">
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.alarm_enabled} onChange={e => setForm({ ...form, alarm_enabled: e.target.checked })} />
-              Location-off alarm
-            </label>
-            <p className="text-xs text-muted" style={{ marginTop: 4 }}>When enabled, phone rings loudly if location is turned off</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', background: 'var(--gray-50, #f9fafb)', borderRadius: 8 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Location-off alarm</div>
+                <div className="text-xs text-muted">Phone rings loudly if this worker turns location off</div>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={form.alarm_enabled}
+                  onChange={e => setForm({ ...form, alarm_enabled: e.target.checked })}
+                  aria-label="Location-off alarm"
+                />
+                <span className="slider" />
+              </label>
+            </div>
           </div>
           <div className="flex gap-2">
             <button type="submit" className="btn btn-primary" disabled={loading}>

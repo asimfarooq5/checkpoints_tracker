@@ -135,12 +135,13 @@ export default function DashboardPage() {
                     <td><span className="badge badge-completed">{u.completedCount}</span></td>
                     <td className="text-sm text-muted">{relativeTime(u.locationUpdatedAt)}</td>
                     <td>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} title="Ring loud alarm if location is turned off">
+                      <label className="toggle-switch" title="Ring loud alarm if location is turned off">
                         <input
                           type="checkbox"
                           checked={Boolean(u.alarm_enabled)}
                           onChange={e => handleToggleAlarm(u.id, e.target.checked)}
                         />
+                        <span className="slider" />
                       </label>
                     </td>
                   </tr>
