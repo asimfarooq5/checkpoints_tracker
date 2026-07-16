@@ -29,6 +29,14 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // R8 (on by default for release here) strips reflection-only entry points
+            // it can't see statically, e.g. androidx.work's Room-generated
+            // WorkDatabase_Impl constructor, which crashed at startup. Rather than
+            // chase keep rules for every plugin one crash at a time, disable
+            // minification until there's a real need for the size/obfuscation
+            // tradeoff.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

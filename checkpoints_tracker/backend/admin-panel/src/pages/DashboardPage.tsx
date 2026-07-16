@@ -53,6 +53,16 @@ export default function DashboardPage() {
     }
   };
 
+  const handleToggleAlarm = async (id: number, next: boolean) => {
+    setUsers(prev => prev.map(u => (u.id === id ? { ...u, alarm_enabled: next ? 1 : 0 } : u)));
+    try {
+      await api.put(`/users/${id}`, { alarm_enabled: next ? 1 : 0 });
+    } catch (err) {
+      setUsers(prev => prev.map(u => (u.id === id ? { ...u, alarm_enabled: next ? 0 : 1 } : u)));
+      alert(err instanceof Error ? err.message : 'Failed to update alarm');
+    }
+  };
+
   const totalWorkers = users.filter(u => u.role === 'worker').length;
   const totalCheckpoints = users.reduce((s, u) => s + u.checkpoints.length, 0);
   const totalCompleted = users.reduce((s, u) => s + u.completedCount, 0);
@@ -105,6 +115,7 @@ export default function DashboardPage() {
                 <th>Pending</th>
                 <th>Completed</th>
                 <th>Last Location Ping</th>
+                <th>Alarm</th>
               </tr>
             </thead>
             <tbody>
@@ -123,6 +134,15 @@ export default function DashboardPage() {
                     <td><span className="badge badge-pending">{u.pendingCount}</span></td>
                     <td><span className="badge badge-completed">{u.completedCount}</span></td>
                     <td className="text-sm text-muted">{relativeTime(u.locationUpdatedAt)}</td>
+                    <td>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} title="Ring loud alarm if location is turned off">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(u.alarm_enabled)}
+                          onChange={e => handleToggleAlarm(u.id, e.target.checked)}
+                        />
+                      </label>
+                    </td>
                   </tr>
                 );
               })}
