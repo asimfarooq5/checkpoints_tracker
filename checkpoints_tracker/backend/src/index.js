@@ -27,10 +27,17 @@ app.use('/api', uploadRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api', locationRoutes);
 
-// Serve admin panel static files in production
+// Serve admin panel static files in production with no-cache
 const adminDist = path.resolve(__dirname, '..', 'admin-panel', 'dist');
-app.use(express.static(adminDist));
+app.use(express.static(adminDist, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  },
+}));
 app.get('*', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(adminDist, 'index.html'));
 });
 

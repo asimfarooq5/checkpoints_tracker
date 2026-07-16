@@ -85,12 +85,14 @@ docker:
 	@echo "→ Backend running on http://0.0.0.0:3300"
 
 docker-up:
-	docker compose up -d --build
+	docker compose build --no-cache
+	docker compose up -d
 	@echo "→ Backend running on http://0.0.0.0:3300"
 
 docker-pull:
 	git pull
-	docker compose up -d --build
+	docker compose build --no-cache
+	docker compose up -d
 	@echo "→ Updated & restarted"
 
 docker-down:
