@@ -1,7 +1,7 @@
 import db from '../db.js';
 import { hashPassword } from './authService.js';
 
-const USER_COLS = 'id, username, display_name, role, latitude, longitude, created_at, updated_at';
+const USER_COLS = 'id, username, display_name, role, latitude, longitude, alarm_enabled, created_at, updated_at';
 
 export function getAllUsers() {
   return db.prepare(
@@ -21,15 +21,15 @@ export function getUserLatLng(id) {
   ).get(id);
 }
 
-export function createUser({ username, password, display_name, role = 'worker', latitude, longitude }) {
+export function createUser({ username, password, display_name, role = 'worker', latitude, longitude, alarm_enabled }) {
   const passwordHash = hashPassword(password);
   const result = db.prepare(
-    'INSERT INTO users (username, password_hash, display_name, role, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(username, passwordHash, display_name, role, latitude ?? null, longitude ?? null);
+    'INSERT INTO users (username, password_hash, display_name, role, latitude, longitude, alarm_enabled) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(username, passwordHash, display_name, role, latitude ?? null, longitude ?? null, alarm_enabled ? 1 : 0);
   return getUserById(result.lastInsertRowid);
 }
 
-export function updateUser(id, { username, password, display_name, role, latitude, longitude }) {
+export function updateUser(id, { username, password, display_name, role, latitude, longitude, alarm_enabled }) {
   const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   if (!existing) return null;
 
@@ -41,6 +41,7 @@ export function updateUser(id, { username, password, display_name, role, latitud
   if (role !== undefined) { updates.push('role = ?'); values.push(role); }
   if (latitude !== undefined) { updates.push('latitude = ?'); values.push(latitude); }
   if (longitude !== undefined) { updates.push('longitude = ?'); values.push(longitude); }
+  if (alarm_enabled !== undefined) { updates.push('alarm_enabled = ?'); values.push(alarm_enabled ? 1 : 0); }
   if (password !== undefined && password !== '') {
     updates.push('password_hash = ?');
     values.push(hashPassword(password));

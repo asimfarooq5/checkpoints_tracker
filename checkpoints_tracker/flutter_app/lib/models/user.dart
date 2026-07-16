@@ -5,6 +5,7 @@ class User {
   final String role;
   final double? latitude;
   final double? longitude;
+  final bool alarmEnabled;
   final String createdAt;
 
   User({
@@ -14,6 +15,7 @@ class User {
     required this.role,
     this.latitude,
     this.longitude,
+    this.alarmEnabled = false,
     required this.createdAt,
   });
 
@@ -25,6 +27,7 @@ class User {
       role: json['role'],
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      alarmEnabled: json['alarm_enabled'] == 1 || json['alarm_enabled'] == true,
       createdAt: json['created_at'] ?? '',
     );
   }

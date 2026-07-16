@@ -5,6 +5,7 @@ export interface User {
   role: 'admin' | 'worker';
   latitude: number | null;
   longitude: number | null;
+  alarm_enabled: number;
   created_at: string;
   updated_at: string;
 }

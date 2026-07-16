@@ -28,6 +28,7 @@ db.exec(`
     role          TEXT    NOT NULL DEFAULT 'worker',
     latitude      REAL,
     longitude     REAL,
+    alarm_enabled INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
   );
@@ -68,6 +69,7 @@ db.exec(`
 // Add lat/long columns to existing users table if they don't exist (migration)
 try { db.exec('ALTER TABLE users ADD COLUMN latitude REAL'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN longitude REAL'); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN alarm_enabled INTEGER NOT NULL DEFAULT 0"); } catch {}
 
 // Seed admin user if not exists
 const adminUsername = process.env.ADMIN_USERNAME || 'admin';

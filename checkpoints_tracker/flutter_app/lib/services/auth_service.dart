@@ -39,12 +39,12 @@ class AuthService {
   }
 
   String userToJson(User user) {
-    return '${user.id}|${user.username}|${user.displayName}|${user.role}|${user.latitude}|${user.longitude}|${user.createdAt}';
+    return '${user.id}|${user.username}|${user.displayName}|${user.role}|${user.latitude}|${user.longitude}|${user.alarmEnabled}|${user.createdAt}';
   }
 
   User? userFromJson(String json) {
     final parts = json.split('|');
-    if (parts.length < 7) return null;
+    if (parts.length < 8) return null;
     return User(
       id: int.parse(parts[0]),
       username: parts[1],
@@ -52,7 +52,8 @@ class AuthService {
       role: parts[3],
       latitude: double.tryParse(parts[4]),
       longitude: double.tryParse(parts[5]),
-      createdAt: parts[6],
+      alarmEnabled: parts[6] == 'true',
+      createdAt: parts[7],
     );
   }
 }

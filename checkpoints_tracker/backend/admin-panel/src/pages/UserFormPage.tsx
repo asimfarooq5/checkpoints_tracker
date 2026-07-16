@@ -8,7 +8,7 @@ export default function UserFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ username: '', display_name: '', password: '', role: 'worker' });
+  const [form, setForm] = useState({ username: '', display_name: '', password: '', role: 'worker', alarm_enabled: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,6 +20,7 @@ export default function UserFormPage() {
           display_name: res.user.display_name,
           password: '',
           role: res.user.role,
+          alarm_enabled: Boolean(res.user.alarm_enabled),
         }))
         .catch(err => setError(err instanceof Error ? err.message : 'Failed to load user'));
     }
@@ -37,9 +38,10 @@ export default function UserFormPage() {
         if (form.display_name) body.display_name = form.display_name;
         if (form.password) body.password = form.password;
         if (form.role) body.role = form.role;
+        body.alarm_enabled = form.alarm_enabled ? 1 : 0;
         await api.put(`/users/${id}`, body);
       } else {
-        await api.post('/users', form);
+        await api.post('/users', { ...form, alarm_enabled: form.alarm_enabled ? 1 : 0 });
       }
       navigate('/users');
     } catch (err) {
@@ -73,6 +75,13 @@ export default function UserFormPage() {
               <option value="worker">Worker</option>
               <option value="admin">Admin</option>
             </select>
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.alarm_enabled} onChange={e => setForm({ ...form, alarm_enabled: e.target.checked })} />
+              Location-off alarm
+            </label>
+            <p className="text-xs text-muted" style={{ marginTop: 4 }}>When enabled, phone rings loudly if location is turned off</p>
           </div>
           <div className="flex gap-2">
             <button type="submit" className="btn btn-primary" disabled={loading}>

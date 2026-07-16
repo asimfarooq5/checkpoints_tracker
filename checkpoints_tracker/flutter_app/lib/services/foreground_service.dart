@@ -1,20 +1,36 @@
 import 'dart:async';
 import 'dart:math';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../config/api_config.dart';
+import 'offline_queue.dart';
 
 const String _channelId = 'checkpoints_tracker_service';
 const String _channelName = 'Checkpoint Tracking';
 const String _channelDesc = 'Checkpoints Tracker is running in the background.';
+const String _alarmChannelId = 'checkpoints_tracker_alarm';
+const String _alarmChannelName = 'Location Alarm';
+const String _alarmChannelDesc = 'Loud alert when location services are turned off.';
+const String _checkpointChannelId = 'checkpoints_tracker_checkpoint';
+const String _checkpointChannelName = 'Checkpoint Completed';
+const String _checkpointChannelDesc = 'Alert with a distinct tone when a checkpoint is auto-completed.';
 const int _notificationId = 7410;
 const double _autoCompleteDistance = 150;
 
+// Distinct double-buzz pattern so a completed checkpoint feels different from other alerts.
+final Int64List _checkpointVibrationPattern = Int64List.fromList([0, 200, 100, 200]);
+
+enum _NotifKind { tracking, alarm, checkpoint }
+
 final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+bool _alarmPlaying = false;
+bool _alarmEnabled = false;
 
 double _haversine(double lat1, double lon1, double lat2, double lon2) {
   const R = 6371000;
@@ -25,28 +41,100 @@ double _haversine(double lat1, double lon1, double lat2, double lon2) {
   return R * 2 * atan2(sqrt(a), sqrt(1 - a));
 }
 
-Future<void> showNotif({String? msg}) async {
+Future<void> _showNotif({String? msg, int? id, _NotifKind kind = _NotifKind.tracking}) async {
+  final isAlarm = kind == _NotifKind.alarm;
+  final isCheckpoint = kind == _NotifKind.checkpoint;
+  final isTracking = kind == _NotifKind.tracking;
+
+  final String channelId;
+  final String channelName;
+  final String channelDesc;
+  if (isAlarm) {
+    channelId = _alarmChannelId; channelName = _alarmChannelName; channelDesc = _alarmChannelDesc;
+  } else if (isCheckpoint) {
+    channelId = _checkpointChannelId; channelName = _checkpointChannelName; channelDesc = _checkpointChannelDesc;
+  } else {
+    channelId = _channelId; channelName = _channelName; channelDesc = _channelDesc;
+  }
+
   await _notifications.show(
-    _notificationId, 'Checkpoints Tracker', msg ?? 'Tracking...',
-    const NotificationDetails(android: AndroidNotificationDetails(
-      _channelId, _channelName, channelDescription: _channelDesc,
+    id ?? _notificationId, 'Checkpoints Tracker', msg ?? 'Tracking...',
+    NotificationDetails(android: AndroidNotificationDetails(
+      channelId, channelName, channelDescription: channelDesc,
       importance: Importance.max, priority: Priority.max,
-      playSound: false, enableVibration: false, ongoing: true,
-      showWhen: true, usesChronometer: true,
-      visibility: NotificationVisibility.public, fullScreenIntent: true,
+      playSound: !isTracking,
+      enableVibration: !isTracking,
+      vibrationPattern: isCheckpoint ? _checkpointVibrationPattern : null,
+      ongoing: isTracking,
+      showWhen: true, usesChronometer: isTracking,
+      visibility: NotificationVisibility.public, fullScreenIntent: isAlarm,
+      category: isAlarm ? AndroidNotificationCategory.alarm : null,
     )),
   );
 }
 
-void _onPosition(Position pos, FlutterSecureStorage storage) async {
+Future<void> _playAlarm() async {
+  if (_alarmPlaying || !_alarmEnabled) return;
+  _alarmPlaying = true;
+  await _showNotif(
+    msg: '🔊 LOCATION OFF — Enable location now!',
+    id: 7411, kind: _NotifKind.alarm,
+  );
+  // Re-trigger alarm every 30s while location is off
+  Timer.periodic(const Duration(seconds: 30), (t) async {
+    final locOn = await Geolocator.isLocationServiceEnabled();
+    if (locOn || !_alarmEnabled) {
+      _alarmPlaying = false;
+      t.cancel();
+      return;
+    }
+    await _showNotif(
+      msg: '🔊 LOCATION OFF — Enable location now!',
+      id: 7411, kind: _NotifKind.alarm,
+    );
+  });
+}
+
+Future<void> _checkAlarm(FlutterSecureStorage storage) async {
   final token = await storage.read(key: 'auth_token');
   if (token == null) return;
+  try {
+    final resp = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/auth/me'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+    ).timeout(ApiConfig.timeout);
+    if (resp.statusCode == 200) {
+      final u = jsonDecode(resp.body)['user'];
+      _alarmEnabled = u['alarm_enabled'] == 1 || u['alarm_enabled'] == true;
+    }
+  } catch (_) {}
+}
+
+Future<void> _onPosition(Position pos, FlutterSecureStorage storage) async {
+  final token = await storage.read(key: 'auth_token');
+  if (token == null) return;
+
+  final isConnected = await Connectivity().checkConnectivity();
+  final online = isConnected.any((c) => c != ConnectivityResult.none);
+
+  final payload = {'latitude': pos.latitude, 'longitude': pos.longitude, 'timestamp': DateTime.now().toIso8601String()};
+
+  if (!online) {
+    await OfflineQueue.enqueue(payload);
+    return;
+  }
+
+  // Flush any queued offline data first
+  await OfflineQueue.flush();
 
   final base = ApiConfig.baseUrl;
   await http.post(Uri.parse('$base/location'),
     headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-    body: jsonEncode({'latitude': pos.latitude, 'longitude': pos.longitude}),
-  ).timeout(ApiConfig.timeout, onTimeout: () => http.Response('', 408));
+    body: jsonEncode(payload),
+  ).timeout(ApiConfig.timeout, onTimeout: () {
+    OfflineQueue.enqueue(payload);
+    return http.Response('', 408);
+  });
 
   try {
     final resp = await http.get(Uri.parse('$base/checkpoints'),
@@ -55,7 +143,7 @@ void _onPosition(Position pos, FlutterSecureStorage storage) async {
 
     if (resp.statusCode != 200) return;
     final list = (jsonDecode(resp.body) as Map)['checkpoints'] as List;
-    int done = 0;
+    final completed = <Map<String, dynamic>>[];
 
     for (final cp in list) {
       if (cp['status'] != 'pending') continue;
@@ -72,14 +160,23 @@ void _onPosition(Position pos, FlutterSecureStorage storage) async {
           headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
           body: jsonEncode({'status': 'completed'}),
         ).timeout(ApiConfig.timeout, onTimeout: () => http.Response('', 408));
-        done++;
+        completed.add(cp as Map<String, dynamic>);
       }
     }
 
+    for (final cp in completed) {
+      final label = cp['label'] as String? ?? 'Checkpoint';
+      await _showNotif(
+        msg: '✓ "$label" completed!',
+        id: 8000 + (cp['id'] as num).toInt(),
+        kind: _NotifKind.checkpoint,
+      );
+    }
+
     final t = '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}';
-    await showNotif(msg: done > 0 ? '✓ $done completed!' : 'Tracking — $t');
+    await _showNotif(msg: completed.isNotEmpty ? '✓ ${completed.length} completed!' : 'Tracking — $t');
   } catch (_) {
-    await showNotif(msg: 'Tracking...');
+    await _showNotif(msg: 'Tracking...');
   }
 }
 
@@ -93,30 +190,37 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
   }
   service.on('stopService').listen((_) => service.stopSelf());
 
-  await showNotif();
+  await _showNotif();
+  await _checkAlarm(storage);
 
-  // Real-time GPS stream — fires every ~10m of movement
   try {
     Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // 10 meters
-        timeLimit: null, // never stop
+        distanceFilter: 10,
+        timeLimit: null,
       ),
     ).listen((pos) => _onPosition(pos, storage), onError: (_) {});
   } catch (_) {}
 
-  // Fallback 30s timer (fires when stationary / GPS stream is idle)
+  // 30s timer: check location status + alarm + flush offline data
   Timer.periodic(const Duration(seconds: 30), (_) async {
-    // Update notification even without GPS movement
     final locOn = await Geolocator.isLocationServiceEnabled();
+    await _checkAlarm(storage);
+
     if (!locOn) {
-      await showNotif(msg: '⚠ Location OFF — tap to enable');
+      await _showNotif(msg: '⚠ Location OFF — tap to enable');
+      if (_alarmEnabled) await _playAlarm();
       return;
     }
-    // If stream is active, just update the notification
+    _alarmPlaying = false;
+
+    // Try to flush offline data
+    await OfflineQueue.flush();
+
+    final count = await OfflineQueue.count();
     final t = '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}';
-    await showNotif(msg: 'Tracking — $t');
+    await _showNotif(msg: count > 0 ? 'Tracking — $t ($count offline)' : 'Tracking — $t');
   });
 
   return true;
@@ -136,9 +240,20 @@ Future<void> initForegroundService() async {
   const ch = AndroidNotificationChannel(_channelId, _channelName,
     description: _channelDesc, importance: Importance.high,
     playSound: false, enableVibration: false);
-  await _notifications
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(ch);
+  const alarmCh = AndroidNotificationChannel(_alarmChannelId, _alarmChannelName,
+    description: _alarmChannelDesc, importance: Importance.max,
+    playSound: true, enableVibration: true,
+    audioAttributesUsage: AudioAttributesUsage.alarm);
+  final checkpointCh = AndroidNotificationChannel(_checkpointChannelId, _checkpointChannelName,
+    description: _checkpointChannelDesc, importance: Importance.high,
+    playSound: true, enableVibration: true,
+    sound: const RawResourceAndroidNotificationSound('checkpoint_complete'),
+    vibrationPattern: _checkpointVibrationPattern);
+  final plugin = _notifications
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+  await plugin?.createNotificationChannel(ch);
+  await plugin?.createNotificationChannel(alarmCh);
+  await plugin?.createNotificationChannel(checkpointCh);
 
   final svc = FlutterBackgroundService();
   await svc.configure(

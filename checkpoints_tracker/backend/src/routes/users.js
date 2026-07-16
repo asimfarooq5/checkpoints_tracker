@@ -22,7 +22,7 @@ router.get('/:id', (req, res) => {
 
 // POST /api/users
 router.post('/', (req, res) => {
-  const { username, password, display_name, role, latitude, longitude } = req.body;
+  const { username, password, display_name, role, latitude, longitude, alarm_enabled } = req.body;
   if (!username || !password || !display_name) {
     return res.status(400).json({ error: 'username, password, and display_name are required' });
   }
@@ -34,6 +34,7 @@ router.post('/', (req, res) => {
       role,
       latitude: latitude !== undefined ? Number(latitude) : undefined,
       longitude: longitude !== undefined ? Number(longitude) : undefined,
+      alarm_enabled,
     });
     res.status(201).json({ user });
   } catch (err) {
@@ -46,7 +47,7 @@ router.post('/', (req, res) => {
 
 // PUT /api/users/:id
 router.put('/:id', (req, res) => {
-  const { username, password, display_name, role, latitude, longitude } = req.body;
+  const { username, password, display_name, role, latitude, longitude, alarm_enabled } = req.body;
   const user = updateUser(Number(req.params.id), {
     username,
     password,
@@ -54,6 +55,7 @@ router.put('/:id', (req, res) => {
     role,
     latitude: latitude !== undefined ? Number(latitude) : undefined,
     longitude: longitude !== undefined ? Number(longitude) : undefined,
+    alarm_enabled,
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });

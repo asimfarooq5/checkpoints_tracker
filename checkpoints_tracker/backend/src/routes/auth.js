@@ -29,7 +29,7 @@ router.post('/logout', authMiddleware, (_req, res) => {
 
 // GET /api/auth/me
 router.get('/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, username, display_name, role, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, username, display_name, role, alarm_enabled, created_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
