@@ -1,4 +1,3 @@
-import { Navigate } from 'react-router-dom';
 import { Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -15,7 +14,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route index element={<Navigate to="/users" replace />} />
+          <Route index element={<DashboardPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/new" element={<UserFormPage />} />
           <Route path="users/:id/edit" element={<UserFormPage />} />

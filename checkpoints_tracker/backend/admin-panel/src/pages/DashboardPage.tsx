@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import type { User, Checkpoint } from '../types';
+import type { User, Checkpoint, WorkerLocation } from '../types';
 import { Link } from 'react-router-dom';
+import { getFreshness, relativeTime, FRESHNESS_LABEL } from '../utils/freshness';
 
 interface UserWithCheckpoints extends User {
   checkpoints: Checkpoint[];
   pendingCount: number;
   completedCount: number;
-  lastUpdated: string | null;
+  locationUpdatedAt: string | null;
 }
+
+const REFRESH_INTERVAL_MS = 30_000;
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<UserWithCheckpoints[]>([]);
@@ -17,14 +20,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
     try {
-      const [userRes, cpRes] = await Promise.all([
+      const [userRes, cpRes, locRes] = await Promise.all([
         api.get<{ users: User[] }>('/users'),
         api.get<{ checkpoints: Checkpoint[] }>('/checkpoints'),
+        api.get<{ workers: WorkerLocation[] }>('/locations'),
       ]);
+
+      const locationByUserId = new Map(locRes.workers.map(w => [w.id, w.location]));
 
       const usersWithCp: UserWithCheckpoints[] = userRes.users.map(u => {
         const userCps = cpRes.checkpoints.filter(c => c.user_id === u.id);
@@ -33,10 +41,7 @@ export default function DashboardPage() {
           checkpoints: userCps,
           pendingCount: userCps.filter(c => c.status === 'pending').length,
           completedCount: userCps.filter(c => c.status === 'completed').length,
-          lastUpdated: userCps.reduce(
-            (latest, c) => (c.last_checked_at && (!latest || c.last_checked_at > latest) ? c.last_checked_at : latest),
-            null as string | null
-          ),
+          locationUpdatedAt: locationByUserId.get(u.id)?.updated_at ?? null,
         };
       });
 
@@ -52,6 +57,7 @@ export default function DashboardPage() {
   const totalCheckpoints = users.reduce((s, u) => s + u.checkpoints.length, 0);
   const totalCompleted = users.reduce((s, u) => s + u.completedCount, 0);
   const totalPending = totalCheckpoints - totalCompleted;
+  const totalOffline = users.filter(u => u.role === 'worker' && getFreshness(u.locationUpdatedAt) === 'offline').length;
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard...</div>;
   if (error) return <div className="error-msg">{error}</div>;
@@ -75,6 +81,10 @@ export default function DashboardPage() {
           <h3>Pending</h3>
           <div className="value" style={{ color: '#92400e' }}>{totalPending}</div>
         </div>
+        <div className="stat-card">
+          <h3>Offline Workers</h3>
+          <div className="value" style={{ color: totalOffline > 0 ? '#dc2626' : undefined }}>{totalOffline}</div>
+        </div>
       </div>
 
       <div className="card">
@@ -90,22 +100,32 @@ export default function DashboardPage() {
             <thead>
               <tr>
                 <th>Worker</th>
+                <th>Tracking</th>
                 <th>Checkpoints</th>
                 <th>Pending</th>
                 <th>Completed</th>
-                <th>Last Update</th>
+                <th>Last Location Ping</th>
               </tr>
             </thead>
             <tbody>
-              {users.filter(u => u.role === 'worker').map(u => (
-                <tr key={u.id}>
-                  <td><strong>{u.display_name}</strong><br /><span className="text-sm text-muted">@{u.username}</span></td>
-                  <td>{u.checkpoints.length}</td>
-                  <td><span className="status-badge status-pending">{u.pendingCount}</span></td>
-                  <td><span className="status-badge status-completed">{u.completedCount}</span></td>
-                  <td className="text-sm text-muted">{u.lastUpdated ? new Date(u.lastUpdated).toLocaleString() : '—'}</td>
-                </tr>
-              ))}
+              {users.filter(u => u.role === 'worker').map(u => {
+                const freshness = getFreshness(u.locationUpdatedAt);
+                return (
+                  <tr key={u.id}>
+                    <td><strong>{u.display_name}</strong><br /><span className="text-sm text-muted">@{u.username}</span></td>
+                    <td>
+                      <span className={`badge badge-${freshness}`}>
+                        <span className={`freshness-dot ${freshness}`} />
+                        {FRESHNESS_LABEL[freshness]}
+                      </span>
+                    </td>
+                    <td>{u.checkpoints.length}</td>
+                    <td><span className="badge badge-pending">{u.pendingCount}</span></td>
+                    <td><span className="badge badge-completed">{u.completedCount}</span></td>
+                    <td className="text-sm text-muted">{relativeTime(u.locationUpdatedAt)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

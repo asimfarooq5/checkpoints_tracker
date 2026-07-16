@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/checkpoint_provider.dart';
 import '../services/foreground_service.dart';
 import '../widgets/checkpoint_card.dart';
+import '../widgets/tracking_status_panel.dart';
 
 double _distance(double lat1, double lon1, double lat2, double lon2) {
   const R = 6371000;
@@ -119,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          TrackingStatusPanel(alarmEnabled: auth.user?.alarmEnabled ?? false),
           if (!_locationOn)
             MaterialBanner(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

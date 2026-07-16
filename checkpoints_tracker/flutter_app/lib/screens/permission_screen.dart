@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' hide ServiceStatus;
+import 'package:disable_battery_optimization/disable_battery_optimization.dart';
 import '../services/foreground_service.dart';
 
 class PermissionScreen extends StatefulWidget {
@@ -13,7 +14,9 @@ class PermissionScreen extends StatefulWidget {
 
 class _PermissionScreenState extends State<PermissionScreen> {
   bool _locationGranted = false;
+  LocationPermission _locationPermission = LocationPermission.denied;
   bool _notificationsGranted = false;
+  bool _batteryOptGranted = false;
   StreamSubscription<ServiceStatus>? _locSub;
 
   @override
@@ -34,11 +37,19 @@ class _PermissionScreenState extends State<PermissionScreen> {
   Future<void> _checkAll() async {
     final loc = await Geolocator.checkPermission();
     final notif = await Permission.notification.status;
+    final batteryOpt = await Permission.ignoreBatteryOptimizations.status;
     if (!mounted) return;
+    final notificationsGranted = notif.isGranted;
     setState(() {
+      _locationPermission = loc;
       _locationGranted = loc == LocationPermission.always || loc == LocationPermission.whileInUse;
-      _notificationsGranted = notif.isGranted;
+      _notificationsGranted = notificationsGranted;
+      _batteryOptGranted = batteryOpt.isGranted;
     });
+    // Background tracking needs "Always" specifically, not just "While in use".
+    if (loc == LocationPermission.always && notificationsGranted) {
+      await _startAndGo();
+    }
   }
 
   Future<void> _onReturnFromSettings() async {
@@ -89,6 +100,19 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
     await Permission.notification.request();
     await Permission.ignoreBatteryOptimizations.request();
+
+    // Many OEMs (Xiaomi, Huawei, Oppo, Vivo, Samsung) kill background services
+    // via their own "autostart"/"protected apps" lists, separate from stock
+    // Android's battery optimization API. Prompt for those too, best-effort.
+    try {
+      await DisableBatteryOptimization.showDisableAllOptimizationsSettings(
+        'Allow Auto-Start',
+        'This lets Checkpoints Tracker restart itself if the system kills it in the background.',
+        'Disable Battery Optimization',
+        'This stops the phone from freezing location tracking to save battery.',
+      );
+    } catch (_) {}
+
     await _checkAll();
 
     // If all granted now, proceed
@@ -101,7 +125,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_locationGranted && _notificationsGranted) {
+    if (_locationPermission == LocationPermission.always && _notificationsGranted) {
       return Scaffold(
         backgroundColor: const Color(0xFF1A1A2E),
         body: Center(
@@ -142,7 +166,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                   const SizedBox(height: 10),
                   _row(Icons.notifications, 'Persistent Notification', 'Keeps service alive — cannot be dismissed', _notificationsGranted),
                   const SizedBox(height: 10),
-                  _row(Icons.battery_full, 'Battery Optimization Off', 'Prevents Android from killing app', false),
+                  _row(Icons.battery_full, 'Battery Optimization Off', 'Prevents Android from killing app', _batteryOptGranted),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,

@@ -33,7 +33,7 @@ export default function UserFormPage() {
 
     try {
       if (isEdit) {
-        const body: Record<string, string> = {};
+        const body: Record<string, string | number> = {};
         if (form.username) body.username = form.username;
         if (form.display_name) body.display_name = form.display_name;
         if (form.password) body.password = form.password;

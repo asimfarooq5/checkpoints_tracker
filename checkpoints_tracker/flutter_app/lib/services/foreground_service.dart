@@ -26,11 +26,17 @@ const double _autoCompleteDistance = 150;
 // Distinct double-buzz pattern so a completed checkpoint feels different from other alerts.
 final Int64List _checkpointVibrationPattern = Int64List.fromList([0, 200, 100, 200]);
 
+// Ceiling on how long a stationary worker can go without a location ping.
+// Without this, the position stream (distanceFilter: 10) stays silent while the
+// device doesn't move, and the admin dashboard can't tell "not moving" from "tracking broken".
+const Duration _heartbeatInterval = Duration(minutes: 5);
+
 enum _NotifKind { tracking, alarm, checkpoint }
 
 final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
 bool _alarmPlaying = false;
 bool _alarmEnabled = false;
+DateTime? _lastPositionAt;
 
 double _haversine(double lat1, double lon1, double lat2, double lon2) {
   const R = 6371000;
@@ -113,6 +119,7 @@ Future<void> _checkAlarm(FlutterSecureStorage storage) async {
 Future<void> _onPosition(Position pos, FlutterSecureStorage storage) async {
   final token = await storage.read(key: 'auth_token');
   if (token == null) return;
+  _lastPositionAt = DateTime.now();
 
   final isConnected = await Connectivity().checkConnectivity();
   final online = isConnected.any((c) => c != ConnectivityResult.none);
@@ -128,13 +135,20 @@ Future<void> _onPosition(Position pos, FlutterSecureStorage storage) async {
   await OfflineQueue.flush();
 
   final base = ApiConfig.baseUrl;
-  await http.post(Uri.parse('$base/location'),
-    headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-    body: jsonEncode(payload),
-  ).timeout(ApiConfig.timeout, onTimeout: () {
-    OfflineQueue.enqueue(payload);
-    return http.Response('', 408);
-  });
+  try {
+    final resp = await http.post(Uri.parse('$base/location'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    ).timeout(ApiConfig.timeout, onTimeout: () => http.Response('', 408));
+
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      await storage.write(key: 'last_sync_at', value: DateTime.now().toIso8601String());
+    } else {
+      await OfflineQueue.enqueue(payload);
+    }
+  } catch (_) {
+    await OfflineQueue.enqueue(payload);
+  }
 
   try {
     final resp = await http.get(Uri.parse('$base/checkpoints'),
@@ -215,8 +229,21 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
     }
     _alarmPlaying = false;
 
-    // Try to flush offline data
-    await OfflineQueue.flush();
+    // Heartbeat: force a location ping if nothing has gone out recently. The
+    // position stream only fires on movement (distanceFilter: 10), so a
+    // stationary-but-healthy worker would otherwise go silent indefinitely.
+    final lastPos = _lastPositionAt;
+    if (lastPos == null || DateTime.now().difference(lastPos) >= _heartbeatInterval) {
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 15)),
+        );
+        await _onPosition(pos, storage);
+      } catch (_) {}
+    } else {
+      // Try to flush offline data
+      await OfflineQueue.flush();
+    }
 
     final count = await OfflineQueue.count();
     final t = '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}';
@@ -273,3 +300,10 @@ Future<void> initForegroundService() async {
 }
 
 Future<bool> isServiceRunning() async => await FlutterBackgroundService().isRunning();
+
+Future<DateTime?> getLastSyncAt() async {
+  const storage = FlutterSecureStorage();
+  final raw = await storage.read(key: 'last_sync_at');
+  if (raw == null) return null;
+  return DateTime.tryParse(raw);
+}

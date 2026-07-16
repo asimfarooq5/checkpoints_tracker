@@ -244,6 +244,14 @@ tbody tr:last-child td { border-bottom: none; }
 .badge-completed { background: var(--success-light); color: var(--success); }
 .badge-admin { background: var(--primary-light); color: var(--primary); }
 .badge-worker { background: var(--gray-100); color: var(--gray-600); }
+.badge-live { background: var(--success-light); color: var(--success); }
+.badge-stale { background: var(--warning-light); color: var(--warning); }
+.badge-offline { background: var(--danger-light); color: var(--danger); }
+
+.freshness-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.freshness-dot.live { background: var(--success); }
+.freshness-dot.stale { background: var(--warning); }
+.freshness-dot.offline { background: var(--danger); }
 
 /* ── Forms ─────────────────────────────────────────────────── */
 

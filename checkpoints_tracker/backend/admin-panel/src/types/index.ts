@@ -10,6 +10,13 @@ export interface User {
   updated_at: string;
 }
 
+export interface WorkerLocation {
+  id: number;
+  username: string;
+  display_name: string;
+  location: { latitude: number; longitude: number; updated_at: string } | null;
+}
+
 export interface Checkpoint {
   id: number;
   user_id: number;
