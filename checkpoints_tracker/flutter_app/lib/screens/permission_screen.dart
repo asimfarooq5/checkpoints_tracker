@@ -45,10 +45,36 @@ class _PermissionScreenState extends State<PermissionScreen> {
   }
 
   Future<void> _requestAll() async {
-    await Geolocator.requestPermission();
-    await Permission.notification.request();
+    // Request location — first attempt
+    var loc = await Geolocator.requestPermission();
 
-    // Request battery optimization exemption
+    // If user picked whileInUse, guide them to Settings to pick "All the time"
+    if (loc == LocationPermission.whileInUse) {
+      if (mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text('Always-On Location Required'),
+            content: const Text(
+              'For background tracking to work, you must select '
+              '"Allow all the time" in location permissions.\n\n'
+              'Tap "Open Settings" and change Location to "All the time".',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Geolocator.openAppSettings(),
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        );
+      }
+      // Check again after returning from settings
+      loc = await Geolocator.checkPermission();
+    }
+
+    await Permission.notification.request();
     await Permission.ignoreBatteryOptimizations.request();
 
     await _checkAll();
