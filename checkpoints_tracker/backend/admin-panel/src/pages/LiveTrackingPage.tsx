@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../api/client';
+import { segmentTrail, type TrailSegment } from '../utils/geo';
 
 interface WorkerLocation {
   id: number;
@@ -22,9 +23,10 @@ export default function LiveTrackingPage() {
   const [workers, setWorkers] = useState<WorkerLocation[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
   const [trail, setTrail] = useState<TrailPoint[]>([]);
+  const [clearing, setClearing] = useState(false);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const trailLineRef = useRef<any>(null);
+  const trailLayersRef = useRef<any[]>([]);
   const containerId = 'livemap';
   const initialFitDone = useRef(false);
 
@@ -59,6 +61,8 @@ export default function LiveTrackingPage() {
     return () => clearInterval(interval);
   }, [selectedId]);
 
+  const segments: TrailSegment[] = segmentTrail(trail);
+
   // Update markers and trail on map
   useEffect(() => {
     const map = mapRef.current;
@@ -67,6 +71,8 @@ export default function LiveTrackingPage() {
     // Clear old markers
     markersRef.current.forEach(m => map.removeLayer(m));
     markersRef.current = [];
+    trailLayersRef.current.forEach(l => map.removeLayer(l));
+    trailLayersRef.current = [];
 
     const bounds: number[][] = [];
 
@@ -88,19 +94,36 @@ export default function LiveTrackingPage() {
       markersRef.current.push(marker);
     });
 
-    // Draw trail for selected worker
-    if (trailLineRef.current) { map.removeLayer(trailLineRef.current); trailLineRef.current = null; }
-    if (trail.length > 1) {
-      const coords = trail.map(p => [p.latitude, p.longitude]);
-      trailLineRef.current = L.polyline(coords, { color: '#2563eb', weight: 3, opacity: 0.7 }).addTo(map);
-      bounds.push(...coords);
-    }
+    // Draw route/idle segments for the selected worker
+    segments.forEach(seg => {
+      if (seg.type === 'route') {
+        const coords = seg.points.map(p => [p.latitude, p.longitude]);
+        if (coords.length < 2) return;
+        const line = L.polyline(coords, { color: '#2563eb', weight: 3, opacity: 0.75 }).addTo(map);
+        trailLayersRef.current.push(line);
+        bounds.push(...coords);
+      } else {
+        const hours = Math.floor(seg.durationMin / 60);
+        const mins = Math.round(seg.durationMin % 60);
+        const durationLabel = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+        const circle = L.circleMarker([seg.latitude, seg.longitude], {
+          radius: 12,
+          fillColor: '#f97316',
+          color: '#fff',
+          weight: 2,
+          fillOpacity: 0.85,
+        }).addTo(map);
+        circle.bindPopup(`Idle ${durationLabel} here`);
+        trailLayersRef.current.push(circle);
+        bounds.push([seg.latitude, seg.longitude]);
+      }
+    });
 
     if (bounds.length > 0 && !initialFitDone.current) {
       map.fitBounds(bounds, { padding: [50, 50] });
       initialFitDone.current = true;
     }
-  }, [workers, trail, selectedId]);
+  }, [workers, segments, selectedId]);
 
   const handleSelect = async (id: string) => {
     setSelectedId(id);
@@ -114,15 +137,41 @@ export default function LiveTrackingPage() {
     }
   };
 
+  const handleClearPath = async () => {
+    if (!selectedId) return;
+    const worker = workers.find(w => String(w.id) === selectedId);
+    if (!confirm(`Clear all location history for ${worker?.display_name ?? 'this worker'}? This cannot be undone.`)) return;
+    setClearing(true);
+    try {
+      await api.delete(`/location/trail/${selectedId}`);
+      setTrail([]);
+      const res = await api.get<{ workers: WorkerLocation[] }>('/locations');
+      setWorkers(res.workers);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to clear path');
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  // The side panel toggling changes the map container's width; Leaflet needs
+  // an explicit nudge or it keeps rendering at the old size until resize.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const timer = setTimeout(() => map.invalidateSize(), 0);
+    return () => clearTimeout(timer);
+  }, [selectedId]);
+
   return (
     <div>
       <div className="card mb-2">
-        <div className="flex items-center mb-2">
+        <div className="flex items-center mb-2" style={{ gap: '0.75rem' }}>
           <h2>Live Tracking</h2>
           <select
             value={selectedId}
             onChange={e => handleSelect(e.target.value)}
-            style={{ marginLeft: '1rem', padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid #d1d5db' }}
+            style={{ padding: '0.3rem 0.5rem', borderRadius: 6, border: '1px solid #d1d5db' }}
           >
             <option value="">All workers</option>
             {workers.map(w => (
@@ -131,10 +180,56 @@ export default function LiveTrackingPage() {
               </option>
             ))}
           </select>
+          {selectedId && (
+            <button className="btn btn-danger btn-sm" onClick={handleClearPath} disabled={clearing}>
+              {clearing ? 'Clearing...' : 'Clear Path'}
+            </button>
+          )}
           <span className="text-sm text-muted ml-auto">Auto-refreshes every 10s</span>
         </div>
       </div>
-      <div id={containerId} style={{ height: 'calc(100vh - 200px)', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} />
+      <div style={{ display: 'flex', gap: '0.75rem', height: 'calc(100vh - 200px)' }}>
+        <div id={containerId} style={{ flex: 1, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} />
+        {selectedId && (
+          <div className="card" style={{ width: 320, flexShrink: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--gray-200, #e5e7eb)' }}>
+              <strong>Route Breakdown</strong>
+              <div className="text-xs text-muted">{trail.length} point{trail.length === 1 ? '' : 's'}</div>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {segments.length === 0 ? (
+                <div className="text-sm text-muted" style={{ padding: '1rem' }}>No location pings yet.</div>
+              ) : (
+                segments.map((seg, i) => (
+                  <div key={i} style={{ padding: '0.6rem 1rem', borderBottom: '1px solid var(--gray-100, #f3f4f6)', fontSize: '0.8rem' }}>
+                    {seg.type === 'route' ? (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />
+                          {seg.label}
+                        </div>
+                        <div className="text-muted">
+                          {seg.points.length} points · {new Date(seg.points[0].created_at).toLocaleTimeString()} – {new Date(seg.points[seg.points.length - 1].created_at).toLocaleTimeString()}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
+                          Idle {seg.durationMin >= 60 ? `${Math.floor(seg.durationMin / 60)}h ${Math.round(seg.durationMin % 60)}m` : `${Math.round(seg.durationMin)}m`}
+                        </div>
+                        <div className="text-muted">
+                          {new Date(seg.startTime).toLocaleTimeString()} – {new Date(seg.endTime).toLocaleTimeString()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -34,6 +34,16 @@ router.get('/location/trail/:userId', authMiddleware, (req, res) => {
   res.json({ user_id: userId, points });
 });
 
+// DELETE /api/location/trail/:userId — clear a worker's location trail (admin only)
+router.delete('/location/trail/:userId', authMiddleware, adminMiddleware, (req, res) => {
+  const userId = Number(req.params.userId);
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const result = db.prepare('DELETE FROM checkin_log WHERE user_id = ?').run(userId);
+  res.json({ message: 'ok', deleted: result.changes });
+});
+
 // GET /api/users/:userId/location — latest known location for a worker
 router.get('/users/:userId/location', authMiddleware, adminMiddleware, (req, res) => {
   const userId = Number(req.params.userId);

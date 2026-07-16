@@ -29,7 +29,7 @@ final Int64List _checkpointVibrationPattern = Int64List.fromList([0, 200, 100, 2
 // Ceiling on how long a stationary worker can go without a location ping.
 // Without this, the position stream (distanceFilter: 10) stays silent while the
 // device doesn't move, and the admin dashboard can't tell "not moving" from "tracking broken".
-const Duration _heartbeatInterval = Duration(minutes: 5);
+const Duration _heartbeatInterval = Duration(minutes: 1);
 
 enum _NotifKind { tracking, alarm, checkpoint }
 
