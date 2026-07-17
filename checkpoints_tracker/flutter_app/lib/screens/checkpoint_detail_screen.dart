@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/checkpoint.dart';
 import '../providers/checkpoint_provider.dart';
+import '../utils/server_time.dart';
 
 class CheckpointDetailScreen extends StatelessWidget {
   const CheckpointDetailScreen({super.key});
@@ -118,12 +119,9 @@ class CheckpointDetailScreen extends StatelessWidget {
   }
 
   String _formatDate(String dateStr) {
-    try {
-      final dt = DateTime.parse(dateStr);
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return dateStr;
-    }
+    final dt = parseServerTime(dateStr)?.toLocal();
+    if (dt == null) return dateStr;
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
+        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }

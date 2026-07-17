@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/checkpoint.dart';
+import '../utils/server_time.dart';
 import 'status_badge.dart';
 
 class CheckpointCard extends StatelessWidget {
@@ -117,11 +118,8 @@ class CheckpointCard extends StatelessWidget {
   }
 
   String _formatDate(String dateStr) {
-    try {
-      final dt = DateTime.parse(dateStr);
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return dateStr;
-    }
+    final dt = parseServerTime(dateStr)?.toLocal();
+    if (dt == null) return dateStr;
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
