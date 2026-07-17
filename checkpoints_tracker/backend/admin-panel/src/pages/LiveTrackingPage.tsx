@@ -96,6 +96,8 @@ export default function LiveTrackingPage() {
     // destroyed and recreated, so a live worker's dot can glide to its new
     // position instead of popping there. Stale/offline workers snap instead —
     // animating a marker toward data that might be minutes old is misleading.
+    // Live workers also get a pulsing ripple ring (only live ones — a ripple
+    // on stale data would falsely suggest the worker is actively moving now).
     workers.forEach(w => {
       if (!w.location) return;
       const lat = w.location.latitude;
@@ -104,16 +106,22 @@ export default function LiveTrackingPage() {
 
       const isLive = getFreshness(w.location.updated_at) === 'live';
       const prev = lastLatLngRef.current.get(w.id);
-      const fillColor = selectedId === String(w.id) ? '#2563eb' : '#f59e0b';
+      const color = selectedId === String(w.id) ? '#2563eb' : '#f59e0b';
       const popupHtml = `<b>${w.display_name}</b><br/>@${w.username}<br/>${new Date(w.location.updated_at).toLocaleTimeString()}`;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="live-marker">${isLive ? `<span class="ripple" style="background:${color}"></span>` : ''}<span class="dot" style="background:${color}"></span></div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
 
       let marker = markersRef.current.get(w.id);
       if (!marker) {
-        marker = L.circleMarker([lat, lng], { radius: 8, fillColor, color: '#fff', weight: 2, fillOpacity: 0.9 }).addTo(map);
+        marker = L.marker([lat, lng], { icon }).addTo(map);
         marker.bindPopup(popupHtml);
         markersRef.current.set(w.id, marker);
       } else {
-        marker.setStyle({ fillColor });
+        marker.setIcon(icon);
         marker.setPopupContent(popupHtml);
         const moved = !prev || prev[0] !== lat || prev[1] !== lng;
         if (moved) {

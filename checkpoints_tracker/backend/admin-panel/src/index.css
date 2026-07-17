@@ -253,6 +253,24 @@ tbody tr:last-child td { border-bottom: none; }
 .freshness-dot.stale { background: var(--warning); }
 .freshness-dot.offline { background: var(--danger); }
 
+/* ── Live tracking map markers ────────────────────────────────── */
+
+.live-marker { position: relative; width: 16px; height: 16px; }
+.live-marker .dot {
+  position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
+  margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.35); z-index: 2;
+}
+.live-marker .ripple {
+  position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
+  margin: -6px 0 0 -6px; border-radius: 50%; opacity: 0.6;
+  animation: ripple-pulse 1.8s ease-out infinite;
+}
+@keyframes ripple-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+
 /* ── Forms ─────────────────────────────────────────────────── */
 
 .toggle-switch {
