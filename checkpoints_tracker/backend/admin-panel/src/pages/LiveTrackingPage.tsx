@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { api } from '../api/client';
 import { segmentTrail, type TrailSegment } from '../utils/geo';
 import { getFreshness } from '../utils/freshness';
+import { useNowTick } from '../hooks/useNowTick';
 
 function easeInOutQuad(t: number) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -48,6 +49,7 @@ export default function LiveTrackingPage() {
   const trailLayersRef = useRef<any[]>([]);
   const containerId = 'livemap';
   const initialFitDone = useRef(false);
+  const nowTick = useNowTick();
 
   // Load workers
   useEffect(() => {
@@ -177,7 +179,7 @@ export default function LiveTrackingPage() {
       map.fitBounds(bounds, { padding: [50, 50] });
       initialFitDone.current = true;
     }
-  }, [workers, segments, selectedId]);
+  }, [workers, segments, selectedId, nowTick]);
 
   const handleSelect = async (id: string) => {
     setSelectedId(id);

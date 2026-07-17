@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { User, Checkpoint, WorkerLocation } from '../types';
 import { getFreshness, relativeTime, FRESHNESS_LABEL } from '../utils/freshness';
+import { useNowTick } from '../hooks/useNowTick';
 
 interface UserWithStats extends User {
   pendingCount: number;
@@ -10,7 +11,7 @@ interface UserWithStats extends User {
   locationUpdatedAt: string | null;
 }
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 15_000;
 
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -20,6 +21,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  useNowTick();
 
   useEffect(() => {
     loadData();

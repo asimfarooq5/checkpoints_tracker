@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import type { User, Checkpoint, WorkerLocation } from '../types';
 import { Link } from 'react-router-dom';
 import { getFreshness, relativeTime, FRESHNESS_LABEL } from '../utils/freshness';
+import { useNowTick } from '../hooks/useNowTick';
 
 interface UserWithCheckpoints extends User {
   checkpoints: Checkpoint[];
@@ -11,12 +12,13 @@ interface UserWithCheckpoints extends User {
   locationUpdatedAt: string | null;
 }
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 15_000;
 
 export default function DashboardPage() {
   const [users, setUsers] = useState<UserWithCheckpoints[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  useNowTick();
 
   useEffect(() => {
     loadData();
