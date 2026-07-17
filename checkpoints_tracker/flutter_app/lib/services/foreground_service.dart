@@ -37,6 +37,7 @@ final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotifications
 bool _alarmPlaying = false;
 bool _alarmEnabled = false;
 DateTime? _lastPositionAt;
+bool? _lastReportedLocationEnabled;
 
 double _haversine(double lat1, double lon1, double lat2, double lon2) {
   const R = 6371000;
@@ -99,6 +100,27 @@ Future<void> _playAlarm() async {
       id: 7411, kind: _NotifKind.alarm,
     );
   });
+}
+
+// Tells the server whether device location services are currently on/off, so
+// the admin panel can show this immediately instead of only inferring it
+// from stale tracking data minutes later. Only sends when the value actually
+// changes, since this can be called from both the real-time stream listener
+// and the 30s poll.
+Future<void> _reportLocationStatus(bool enabled, FlutterSecureStorage storage) async {
+  if (_lastReportedLocationEnabled == enabled) return;
+  final token = await storage.read(key: 'auth_token');
+  if (token == null) return;
+  try {
+    final resp = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/location/status'),
+      headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({'enabled': enabled}),
+    ).timeout(ApiConfig.timeout);
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      _lastReportedLocationEnabled = enabled;
+    }
+  } catch (_) {}
 }
 
 Future<void> _checkAlarm(FlutterSecureStorage storage) async {
@@ -232,6 +254,7 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
     Geolocator.getServiceStatusStream().listen((status) async {
       final locOn = status == ServiceStatus.enabled;
       await _checkAlarm(storage);
+      await _reportLocationStatus(locOn, storage);
       if (!locOn) {
         await _showNotif(msg: '⚠ Location OFF — tap to enable');
         if (_alarmEnabled) await _playAlarm();
@@ -245,6 +268,7 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
   Timer.periodic(const Duration(seconds: 30), (_) async {
     final locOn = await Geolocator.isLocationServiceEnabled();
     await _checkAlarm(storage);
+    await _reportLocationStatus(locOn, storage);
 
     if (!locOn) {
       await _showNotif(msg: '⚠ Location OFF — tap to enable');

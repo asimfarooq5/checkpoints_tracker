@@ -6,6 +6,8 @@ export interface User {
   latitude: number | null;
   longitude: number | null;
   alarm_enabled: number;
+  location_service_enabled: number | null;
+  location_service_updated_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -14,6 +16,8 @@ export interface WorkerLocation {
   id: number;
   username: string;
   display_name: string;
+  location_service_enabled: number | null;
+  location_service_updated_at: string | null;
   location: { latitude: number; longitude: number; updated_at: string } | null;
 }
 

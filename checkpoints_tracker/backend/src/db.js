@@ -70,6 +70,8 @@ db.exec(`
 try { db.exec('ALTER TABLE users ADD COLUMN latitude REAL'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN longitude REAL'); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN alarm_enabled INTEGER NOT NULL DEFAULT 0"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN location_service_enabled INTEGER"); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN location_service_updated_at TEXT"); } catch {}
 
 // Seed admin user if not exists
 const adminUsername = process.env.ADMIN_USERNAME || 'admin';

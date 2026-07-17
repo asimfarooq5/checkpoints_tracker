@@ -17,6 +17,20 @@ router.post('/location', authMiddleware, (req, res) => {
   res.json({ message: 'ok' });
 });
 
+// PATCH /api/location/status — worker reports whether device location services are on/off.
+// Separate from POST /location: when location is OFF the app has no coordinates to send,
+// but the admin should still find out immediately rather than inferring it from staleness.
+router.patch('/location/status', authMiddleware, (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'enabled (boolean) is required' });
+  }
+  db.prepare(
+    "UPDATE users SET location_service_enabled = ?, location_service_updated_at = datetime('now') WHERE id = ?"
+  ).run(enabled ? 1 : 0, req.user.id);
+  res.json({ message: 'ok' });
+});
+
 // GET /api/location/trail/:userId — full route trail for a worker
 router.get('/location/trail/:userId', authMiddleware, (req, res) => {
   const userId = Number(req.params.userId);
@@ -47,7 +61,9 @@ router.delete('/location/trail/:userId', authMiddleware, adminMiddleware, (req, 
 // GET /api/users/:userId/location — latest known location for a worker
 router.get('/users/:userId/location', authMiddleware, adminMiddleware, (req, res) => {
   const userId = Number(req.params.userId);
-  const user = db.prepare('SELECT id, username, display_name FROM users WHERE id = ?').get(userId);
+  const user = db.prepare(
+    'SELECT id, username, display_name, location_service_enabled, location_service_updated_at FROM users WHERE id = ?'
+  ).get(userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const latest = db.prepare(`
@@ -70,7 +86,9 @@ router.get('/users/:userId/location', authMiddleware, adminMiddleware, (req, res
 
 // GET /api/locations — all workers' latest locations
 router.get('/locations', authMiddleware, adminMiddleware, (req, res) => {
-  const workers = db.prepare("SELECT id, username, display_name FROM users WHERE role = 'worker'").all();
+  const workers = db.prepare(
+    "SELECT id, username, display_name, location_service_enabled, location_service_updated_at FROM users WHERE role = 'worker'"
+  ).all();
 
   const result = workers.map(worker => {
     const latest = db.prepare(`

@@ -1,7 +1,7 @@
 import db from '../db.js';
 import { hashPassword } from './authService.js';
 
-const USER_COLS = 'id, username, display_name, role, latitude, longitude, alarm_enabled, created_at, updated_at';
+const USER_COLS = 'id, username, display_name, role, latitude, longitude, alarm_enabled, location_service_enabled, location_service_updated_at, created_at, updated_at';
 
 export function getAllUsers() {
   return db.prepare(

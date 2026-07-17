@@ -67,7 +67,9 @@ export default function DashboardPage() {
   const totalCheckpoints = users.reduce((s, u) => s + u.checkpoints.length, 0);
   const totalCompleted = users.reduce((s, u) => s + u.completedCount, 0);
   const totalPending = totalCheckpoints - totalCompleted;
-  const totalOffline = users.filter(u => u.role === 'worker' && getFreshness(u.locationUpdatedAt) === 'offline').length;
+  const totalOffline = users.filter(
+    u => u.role === 'worker' && (u.location_service_enabled === 0 || getFreshness(u.locationUpdatedAt) === 'offline')
+  ).length;
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard...</div>;
   if (error) return <div className="error-msg">{error}</div>;
@@ -120,15 +122,23 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {users.filter(u => u.role === 'worker').map(u => {
+                const locationOff = u.location_service_enabled === 0;
                 const freshness = getFreshness(u.locationUpdatedAt);
                 return (
                   <tr key={u.id}>
                     <td><strong>{u.display_name}</strong><br /><span className="text-sm text-muted">@{u.username}</span></td>
                     <td>
-                      <span className={`badge badge-${freshness}`}>
-                        <span className={`freshness-dot ${freshness}`} />
-                        {FRESHNESS_LABEL[freshness]}
-                      </span>
+                      {locationOff ? (
+                        <span className="badge badge-offline" title={u.location_service_updated_at ? `Device reported location off ${relativeTime(u.location_service_updated_at)}` : 'Device reported location off'}>
+                          <span className="freshness-dot offline" />
+                          Location Off
+                        </span>
+                      ) : (
+                        <span className={`badge badge-${freshness}`}>
+                          <span className={`freshness-dot ${freshness}`} />
+                          {FRESHNESS_LABEL[freshness]}
+                        </span>
+                      )}
                     </td>
                     <td>{u.checkpoints.length}</td>
                     <td><span className="badge badge-pending">{u.pendingCount}</span></td>

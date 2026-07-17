@@ -121,6 +121,14 @@ export default function UsersPage() {
                     </td>
                     <td>
                       {u.role === 'worker' ? (() => {
+                        if (u.location_service_enabled === 0) {
+                          return (
+                            <span className="badge badge-offline" title={u.location_service_updated_at ? `Device reported location off ${relativeTime(u.location_service_updated_at)}` : 'Device reported location off'}>
+                              <span className="freshness-dot offline" />
+                              Location Off
+                            </span>
+                          );
+                        }
                         const freshness = getFreshness(u.locationUpdatedAt);
                         return (
                           <span className={`badge badge-${freshness}`} title={relativeTime(u.locationUpdatedAt)}>
