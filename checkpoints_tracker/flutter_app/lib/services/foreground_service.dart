@@ -121,8 +121,16 @@ Future<void> _onPosition(Position pos, FlutterSecureStorage storage) async {
   if (token == null) return;
   _lastPositionAt = DateTime.now();
 
-  final isConnected = await Connectivity().checkConnectivity();
-  final online = isConnected.any((c) => c != ConnectivityResult.none);
+  bool online;
+  try {
+    final isConnected = await Connectivity().checkConnectivity();
+    online = isConnected.any((c) => c != ConnectivityResult.none);
+  } catch (_) {
+    // If we can't even determine connectivity, assume offline: queuing
+    // guarantees no data loss, and the next successful position update
+    // will flush it. Assuming online risks losing the point outright.
+    online = false;
+  }
 
   final payload = {'latitude': pos.latitude, 'longitude': pos.longitude, 'timestamp': DateTime.now().toIso8601String()};
 
