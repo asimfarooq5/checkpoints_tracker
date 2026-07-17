@@ -6,8 +6,11 @@ import '../services/offline_queue.dart';
 
 class TrackingStatusPanel extends StatefulWidget {
   final bool alarmEnabled;
+  // Bump this from the parent (e.g. on pull-to-refresh) to force an immediate
+  // re-check instead of waiting for the internal 15s timer.
+  final int refreshSignal;
 
-  const TrackingStatusPanel({super.key, required this.alarmEnabled});
+  const TrackingStatusPanel({super.key, required this.alarmEnabled, this.refreshSignal = 0});
 
   @override
   State<TrackingStatusPanel> createState() => _TrackingStatusPanelState();
@@ -25,6 +28,12 @@ class _TrackingStatusPanelState extends State<TrackingStatusPanel> {
     super.initState();
     _refresh();
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+  }
+
+  @override
+  void didUpdateWidget(TrackingStatusPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshSignal != widget.refreshSignal) _refresh();
   }
 
   @override

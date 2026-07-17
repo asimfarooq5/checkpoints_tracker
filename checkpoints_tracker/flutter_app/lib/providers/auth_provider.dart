@@ -42,6 +42,17 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Re-fetches the current user from the server (e.g. on pull-to-refresh) so
+  // admin-side changes like the alarm toggle show up without a fresh login.
+  // Doesn't touch isLoading/error — this is a silent background refresh.
+  Future<void> refreshUser() async {
+    final freshUser = await _authService.tryAutoLogin();
+    if (freshUser != null) {
+      _user = freshUser;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     await _authService.logout();
     _user = null;

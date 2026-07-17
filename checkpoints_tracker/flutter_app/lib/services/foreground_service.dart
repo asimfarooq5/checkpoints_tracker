@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../config/api_config.dart';
 import 'offline_queue.dart';
+import 'sync_status.dart';
 
 const String _channelId = 'checkpoints_tracker_service';
 const String _channelName = 'Checkpoint Tracking';
@@ -172,7 +173,7 @@ Future<void> _onPosition(Position pos, FlutterSecureStorage storage) async {
     ).timeout(ApiConfig.timeout, onTimeout: () => http.Response('', 408));
 
     if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      await storage.write(key: 'last_sync_at', value: DateTime.now().toIso8601String());
+      await SyncStatus.markSynced();
     } else {
       await OfflineQueue.enqueue(payload);
     }
@@ -349,9 +350,4 @@ Future<void> initForegroundService() async {
 
 Future<bool> isServiceRunning() async => await FlutterBackgroundService().isRunning();
 
-Future<DateTime?> getLastSyncAt() async {
-  const storage = FlutterSecureStorage();
-  final raw = await storage.read(key: 'last_sync_at');
-  if (raw == null) return null;
-  return DateTime.tryParse(raw);
-}
+Future<DateTime?> getLastSyncAt() => SyncStatus.read();

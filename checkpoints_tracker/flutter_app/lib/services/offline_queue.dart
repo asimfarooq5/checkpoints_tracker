@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/api_config.dart';
+import 'sync_status.dart';
 
 // A point never survives more than this many failed retry attempts. Without a
 // cap, a point the server will genuinely never accept (or some unforeseen
@@ -60,6 +61,7 @@ class OfflineQueue {
           if (token == null) return;
 
           final remaining = <dynamic>[];
+          var deliveredAny = false;
           for (final raw in list) {
             final entry = raw is Map ? Map<String, dynamic>.from(raw) : {'payload': raw, 'attempts': 0};
             final payload = entry['payload'] ?? entry;
@@ -80,7 +82,9 @@ class OfflineQueue {
               final isPermanentRejection =
                   resp.statusCode >= 400 && resp.statusCode < 500 && resp.statusCode != 401 && resp.statusCode != 403;
 
-              if (!ok && !isPermanentRejection) {
+              if (ok) {
+                deliveredAny = true;
+              } else if (!isPermanentRejection) {
                 final nextAttempts = attempts + 1;
                 if (nextAttempts < _maxAttempts) {
                   remaining.add({'payload': payload, 'attempts': nextAttempts});
@@ -95,6 +99,14 @@ class OfflineQueue {
           }
 
           await f.writeAsString(jsonEncode(remaining));
+          // A queued point delivering late is still real evidence the server
+          // heard from us — without this, "Last sync" stayed stuck on "never"
+          // any time every live post happened to fail and only flush() ever
+          // got a point through (e.g. flaky signal), even as data visibly
+          // reached the server.
+          if (deliveredAny) {
+            await SyncStatus.markSynced();
+          }
         } catch (_) {}
       });
 

@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<ServiceStatus>? _locSub;
   Timer? _posTimer;
   bool _locationDialogShowing = false;
+  int _refreshSignal = 0;
 
   @override
   void initState() {
@@ -102,7 +103,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _locationDialogShowing = false;
   }
 
-  Future<void> _refresh() async => context.read<CheckpointProvider>().loadCheckpoints();
+  Future<void> _refresh() async {
+    await Future.wait([
+      context.read<CheckpointProvider>().loadCheckpoints(),
+      context.read<AuthProvider>().refreshUser(),
+    ]);
+    if (mounted) setState(() => _refreshSignal++);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          TrackingStatusPanel(alarmEnabled: auth.user?.alarmEnabled ?? false),
+          TrackingStatusPanel(alarmEnabled: auth.user?.alarmEnabled ?? false, refreshSignal: _refreshSignal),
           if (!_locationOn)
             MaterialBanner(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

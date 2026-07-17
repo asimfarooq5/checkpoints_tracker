@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:workmanager/workmanager.dart';
 import '../config/api_config.dart';
 import 'offline_queue.dart';
+import 'sync_status.dart';
 
 // This is the top-level callback function required by WorkManager.
 // It must be a top-level function, not a class method.
@@ -56,6 +57,7 @@ void callbackDispatcher() {
         if (resp.statusCode < 200 || resp.statusCode >= 300) {
           await OfflineQueue.enqueue(payload);
         } else {
+          await SyncStatus.markSynced();
           await OfflineQueue.flush();
         }
       } catch (_) {
