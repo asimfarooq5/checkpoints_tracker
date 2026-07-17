@@ -1,6 +1,24 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../api/client';
 import { segmentTrail, type TrailSegment } from '../utils/geo';
+import { getFreshness } from '../utils/freshness';
+
+function easeInOutQuad(t: number) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+// Glides a marker from its current position to a new one instead of snapping,
+// so a live-updating worker's dot visibly moves on the map.
+function animateMarkerTo(marker: any, from: [number, number], to: [number, number], duration = 800) {
+  const start = performance.now();
+  function step(now: number) {
+    const t = Math.min((now - start) / duration, 1);
+    const e = easeInOutQuad(t);
+    marker.setLatLng([from[0] + (to[0] - from[0]) * e, from[1] + (to[1] - from[1]) * e]);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
 
 interface WorkerLocation {
   id: number;
@@ -25,7 +43,8 @@ export default function LiveTrackingPage() {
   const [trail, setTrail] = useState<TrailPoint[]>([]);
   const [clearing, setClearing] = useState(false);
   const mapRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<Map<number, any>>(new Map());
+  const lastLatLngRef = useRef<Map<number, [number, number]>>(new Map());
   const trailLayersRef = useRef<any[]>([]);
   const containerId = 'livemap';
   const initialFitDone = useRef(false);
@@ -68,30 +87,54 @@ export default function LiveTrackingPage() {
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear old markers
-    markersRef.current.forEach(m => map.removeLayer(m));
-    markersRef.current = [];
     trailLayersRef.current.forEach(l => map.removeLayer(l));
     trailLayersRef.current = [];
 
     const bounds: number[][] = [];
 
+    // Markers persist across updates (keyed by worker id) instead of being
+    // destroyed and recreated, so a live worker's dot can glide to its new
+    // position instead of popping there. Stale/offline workers snap instead —
+    // animating a marker toward data that might be minutes old is misleading.
     workers.forEach(w => {
       if (!w.location) return;
       const lat = w.location.latitude;
       const lng = w.location.longitude;
       bounds.push([lat, lng]);
 
-      const marker = L.circleMarker([lat, lng], {
-        radius: 8,
-        fillColor: selectedId === String(w.id) ? '#2563eb' : '#f59e0b',
-        color: '#fff',
-        weight: 2,
-        fillOpacity: 0.9,
-      }).addTo(map);
+      const isLive = getFreshness(w.location.updated_at) === 'live';
+      const prev = lastLatLngRef.current.get(w.id);
+      const fillColor = selectedId === String(w.id) ? '#2563eb' : '#f59e0b';
+      const popupHtml = `<b>${w.display_name}</b><br/>@${w.username}<br/>${new Date(w.location.updated_at).toLocaleTimeString()}`;
 
-      marker.bindPopup(`<b>${w.display_name}</b><br/>@${w.username}<br/>${new Date(w.location.updated_at).toLocaleTimeString()}`);
-      markersRef.current.push(marker);
+      let marker = markersRef.current.get(w.id);
+      if (!marker) {
+        marker = L.circleMarker([lat, lng], { radius: 8, fillColor, color: '#fff', weight: 2, fillOpacity: 0.9 }).addTo(map);
+        marker.bindPopup(popupHtml);
+        markersRef.current.set(w.id, marker);
+      } else {
+        marker.setStyle({ fillColor });
+        marker.setPopupContent(popupHtml);
+        const moved = !prev || prev[0] !== lat || prev[1] !== lng;
+        if (moved) {
+          if (isLive && prev) {
+            animateMarkerTo(marker, prev, [lat, lng]);
+          } else {
+            marker.setLatLng([lat, lng]);
+          }
+        }
+      }
+      lastLatLngRef.current.set(w.id, [lat, lng]);
+    });
+
+    // Drop markers for workers no longer in the list
+    const currentIds = new Set(workers.map(w => w.id));
+    markersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        map.removeLayer(marker);
+        markersRef.current.delete(id);
+        lastLatLngRef.current.delete(id);
+      }
     });
 
     // Draw route/idle segments for the selected worker
