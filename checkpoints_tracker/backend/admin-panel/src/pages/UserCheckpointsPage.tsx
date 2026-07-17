@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Checkpoint, User } from '../types';
+import { getFreshness } from '../utils/freshness';
 
 interface CsvRow {
   label: string;
@@ -224,12 +225,21 @@ export default function UserCheckpointsPage() {
       bounds.push([cp.latitude, cp.longitude]);
     });
 
-    // Live location dot
+    // Live location — pin with a pulsing ripple when the data is actually fresh
     if (liveLocation) {
-      const m = L.circleMarker([liveLocation.latitude, liveLocation.longitude], {
-        radius: 10, fillColor: '#2563eb', color: '#fff', weight: 3, fillOpacity: 1,
-      }).addTo(map);
-      m.bindPopup(`<b>${user.display_name}</b><br/>Live<br/>${new Date(liveLocation.updated_at).toLocaleTimeString()}`);
+      const isLive = getFreshness(liveLocation.updated_at) === 'live';
+      const color = '#2563eb';
+      const ripples = isLive
+        ? `<span class="ripple r1" style="background:${color}"></span><span class="ripple r2" style="background:${color}"></span><span class="ripple r3" style="background:${color}"></span>`
+        : '';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="live-marker">${ripples}<svg class="pin-svg" width="20" height="26" viewBox="0 0 24 30"><path fill="${color}" d="M12 0C6.5 0 2 4.5 2 10c0 7.5 10 19 10 19s10-11.5 10-19c0-5.5-4.5-10-10-10z"/><circle cx="12" cy="10" r="4" fill="#fff"/></svg></div>`,
+        iconSize: [24, 32],
+        iconAnchor: [12, 29],
+      });
+      const m = L.marker([liveLocation.latitude, liveLocation.longitude], { icon }).addTo(map);
+      m.bindPopup(`<b>${user.display_name}</b><br/>${isLive ? 'Live' : 'Last known'}<br/>${new Date(liveLocation.updated_at).toLocaleTimeString()}`);
       markersRef.current.push(m);
       bounds.push([liveLocation.latitude, liveLocation.longitude]);
     }
