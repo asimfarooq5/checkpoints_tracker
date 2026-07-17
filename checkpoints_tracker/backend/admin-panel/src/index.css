@@ -255,20 +255,21 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* ── Live tracking map markers ────────────────────────────────── */
 
-.live-marker { position: relative; width: 16px; height: 16px; }
-.live-marker .dot {
-  position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
-  margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.35); z-index: 2;
+.live-marker { position: relative; width: 24px; height: 32px; }
+.live-marker .pin-svg {
+  position: absolute; top: 0; left: 50%; margin-left: -12px; z-index: 2;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 .live-marker .ripple {
-  position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
-  margin: -6px 0 0 -6px; border-radius: 50%; opacity: 0.6;
+  position: absolute; bottom: -1px; left: 50%; width: 10px; height: 10px;
+  margin-left: -5px; border-radius: 50%; opacity: 0.55; z-index: 1;
   animation: ripple-pulse 1.8s ease-out infinite;
 }
+.live-marker .ripple.r2 { animation-delay: 0.6s; }
+.live-marker .ripple.r3 { animation-delay: 1.2s; }
 @keyframes ripple-pulse {
   0% { transform: scale(1); opacity: 0.55; }
-  100% { transform: scale(3.2); opacity: 0; }
+  100% { transform: scale(4.5); opacity: 0; }
 }
 
 /* ── Forms ─────────────────────────────────────────────────── */

@@ -108,11 +108,14 @@ export default function LiveTrackingPage() {
       const prev = lastLatLngRef.current.get(w.id);
       const color = selectedId === String(w.id) ? '#2563eb' : '#f59e0b';
       const popupHtml = `<b>${w.display_name}</b><br/>@${w.username}<br/>${new Date(w.location.updated_at).toLocaleTimeString()}`;
+      const ripples = isLive
+        ? `<span class="ripple r1" style="background:${color}"></span><span class="ripple r2" style="background:${color}"></span><span class="ripple r3" style="background:${color}"></span>`
+        : '';
       const icon = L.divIcon({
         className: '',
-        html: `<div class="live-marker">${isLive ? `<span class="ripple" style="background:${color}"></span>` : ''}<span class="dot" style="background:${color}"></span></div>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+        html: `<div class="live-marker">${ripples}<svg class="pin-svg" width="20" height="26" viewBox="0 0 24 30"><path fill="${color}" d="M12 0C6.5 0 2 4.5 2 10c0 7.5 10 19 10 19s10-11.5 10-19c0-5.5-4.5-10-10-10z"/><circle cx="12" cy="10" r="4" fill="#fff"/></svg></div>`,
+        iconSize: [24, 32],
+        iconAnchor: [12, 29],
       });
 
       let marker = markersRef.current.get(w.id);
