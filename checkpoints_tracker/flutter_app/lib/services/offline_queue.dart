@@ -5,6 +5,12 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/api_config.dart';
 
+// A point never survives more than this many failed retry attempts. Without a
+// cap, a point the server will genuinely never accept (or some unforeseen
+// persistent failure) would sit in the queue forever, permanently showing
+// "N offline" in the tracking notification.
+const int _maxAttempts = 20;
+
 class OfflineQueue {
   static final FlutterSecureStorage _storage = const FlutterSecureStorage();
   static Future<File> get _file async =>
@@ -39,7 +45,7 @@ class OfflineQueue {
         try {
           final f = await _file;
           final list = await _readList(f);
-          list.add(data);
+          list.add({'payload': data, 'attempts': 0});
           await f.writeAsString(jsonEncode(list));
         } catch (_) {}
       });
@@ -54,18 +60,37 @@ class OfflineQueue {
           if (token == null) return;
 
           final remaining = <dynamic>[];
-          for (final item in list) {
+          for (final raw in list) {
+            final entry = raw is Map ? Map<String, dynamic>.from(raw) : {'payload': raw, 'attempts': 0};
+            final payload = entry['payload'] ?? entry;
+            final attempts = (entry['attempts'] as num?)?.toInt() ?? 0;
+
             try {
               final resp = await http.post(
                 Uri.parse('${ApiConfig.baseUrl}/location'),
                 headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-                body: jsonEncode(item),
+                body: jsonEncode(payload),
               ).timeout(ApiConfig.timeout, onTimeout: () => http.Response('', 408));
-              if (resp.statusCode < 200 || resp.statusCode >= 300) {
-                remaining.add(item);
+
+              final ok = resp.statusCode >= 200 && resp.statusCode < 300;
+              // 401/403 might recover after the user re-logs in with a fresh
+              // token, so keep retrying those. Other 4xx (bad payload, etc.)
+              // will fail identically forever — drop them instead of
+              // clogging the queue. 5xx/408 are transient — always retry.
+              final isPermanentRejection =
+                  resp.statusCode >= 400 && resp.statusCode < 500 && resp.statusCode != 401 && resp.statusCode != 403;
+
+              if (!ok && !isPermanentRejection) {
+                final nextAttempts = attempts + 1;
+                if (nextAttempts < _maxAttempts) {
+                  remaining.add({'payload': payload, 'attempts': nextAttempts});
+                }
               }
             } catch (_) {
-              remaining.add(item);
+              final nextAttempts = attempts + 1;
+              if (nextAttempts < _maxAttempts) {
+                remaining.add({'payload': payload, 'attempts': nextAttempts});
+              }
             }
           }
 

@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasPosition = false;
   StreamSubscription<ServiceStatus>? _locSub;
   Timer? _posTimer;
+  bool _locationDialogShowing = false;
 
   @override
   void initState() {
@@ -47,8 +48,15 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkLocation();
     _locSub = Geolocator.getServiceStatusStream().listen((status) {
       if (!mounted) return;
-      setState(() => _locationOn = status == ServiceStatus.enabled);
-      if (status == ServiceStatus.disabled) _showLocationOffDialog();
+      final on = status == ServiceStatus.enabled;
+      setState(() => _locationOn = on);
+      if (!on) {
+        _showLocationOffDialog();
+      } else if (_locationDialogShowing) {
+        // Auto-dismiss: the dialog has no other way to close, and without this
+        // it would sit there forever even after the user re-enables location.
+        Navigator.of(context, rootNavigator: true).pop();
+      }
     });
     _posTimer = Timer.periodic(const Duration(seconds: 5), _updatePosition);
   }
@@ -80,7 +88,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _hasPosition ? _distance(_userLat, _userLng, lat, lng) : null;
 
   Future<void> _showLocationOffDialog() async {
-    if (!mounted) return;
+    if (!mounted || _locationDialogShowing) return;
+    _locationDialogShowing = true;
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -90,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [TextButton(onPressed: () => Geolocator.openLocationSettings(), child: const Text('Open Settings'))],
       ),
     );
+    _locationDialogShowing = false;
   }
 
   Future<void> _refresh() async => context.read<CheckpointProvider>().loadCheckpoints();

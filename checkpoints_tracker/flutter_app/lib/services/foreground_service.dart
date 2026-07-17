@@ -225,6 +225,22 @@ Future<bool> foregroundServiceMain(ServiceInstance service) async {
     ).listen((pos) => _onPosition(pos, storage), onError: (_) {});
   } catch (_) {}
 
+  // React to location on/off immediately instead of waiting for the 30s
+  // poll below — that poll is still a fallback in case this stream event
+  // is ever missed, but this is what makes the alarm feel instant.
+  try {
+    Geolocator.getServiceStatusStream().listen((status) async {
+      final locOn = status == ServiceStatus.enabled;
+      await _checkAlarm(storage);
+      if (!locOn) {
+        await _showNotif(msg: '⚠ Location OFF — tap to enable');
+        if (_alarmEnabled) await _playAlarm();
+      } else {
+        _alarmPlaying = false;
+      }
+    }, onError: (_) {});
+  } catch (_) {}
+
   // 30s timer: check location status + alarm + flush offline data
   Timer.periodic(const Duration(seconds: 30), (_) async {
     final locOn = await Geolocator.isLocationServiceEnabled();
